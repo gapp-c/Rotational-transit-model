@@ -8,6 +8,7 @@ import parameters as pr
 from lmfit import Parameters
 import Plot, calculateBatmanModel
 from scipy import constants
+from scipy import stats
 
 def pretty_labels( var ):
     
@@ -571,7 +572,7 @@ def sigma_clipping_white( z, fit_params, sigma_cutoff ):
     detectors = list(z.keys())
     
     for nrs in detectors:
-        batpar, batmodel = calculateBatmanModel.create_Batman_object( z[nrs]['bjd_tdb'] )
+        batpar, batmodel = calculateBatmanModel.create_Batman_arrays( z[nrs]['bjd_tdb'] )
         model = calculateBatmanModel.Broad( fit_params.valuesdict(), z[nrs], batpar, batmodel, nrs )
         z[nrs], model = sigma_clipping( z[nrs], model, sigma_cutoff, max_errorbar=0.002 )
         print(nrs + ' ' + str(z[nrs]['outliers']),)
@@ -580,8 +581,9 @@ def sigma_clipping_white( z, fit_params, sigma_cutoff ):
 def sigma_clipping_spec( z, fit_params, broad_fit_params, sigma_cutoff):
     
     # Calculate the model
-    batpar, batmodel = calculateBatmanModel.create_Batman_object( z['bjd_tdb'] )
-    batpar = calculateBatmanModel.fix_broad_fit_parameters( batpar, broad_fit_params )
+    batpar, batmodel = calculateBatmanModel.create_Batman_arrays( z['bjd_tdb'] )
+    for j in range(len(batpar)):
+        batpar[j] = calculateBatmanModel.fix_broad_fit_parameters(batpar[j], broad_fit_params)
     model = calculateBatmanModel.Spec( fit_params.valuesdict(), z, batpar, batmodel )
     
     z, model = sigma_clipping( z, model, sigma_cutoff )
@@ -888,7 +890,7 @@ def scale_uncertainties_broad( z, fit_params, p0, batpar, batmodel ):
         if reduced_chisquare[nrs] > 1.:
             z[nrs]['lcUncs'] = z[nrs]['lcUncs'] * np.sqrt(reduced_chisquare[nrs])
 
-def bayes2Nsigma( b ):
+def bayes2Nsigma_wrong( b ):
     """
     Calculates the sigma significance by which a null hypothesis given a Bayes factor can be ruled out by.
     Equations were taken from Benneke & Seager (2013), eq.s (10) & (11)
@@ -910,6 +912,69 @@ def bayes2Nsigma( b ):
     p_value = y / np.real(scipy.special.lambertw(y, -1))
     
     return np.sqrt(2.) * scipy.special.erfinv(1.-p_value)
+
+def bayes2Nsigma ( bayes_factor ):
+    ''' Converts a bayes factor between two models to a probability and
+    corresponding Bayesian Sigma .
+    Args :
+        bayes_factor : the Bayes factor to be converted , usually > 1
+    Returns :
+        The probability that the model was true given that one of the models
+        is correct ( including priors ), and the corresponding Bayesian sigma . '''
+    p = 1. / (1 + bayes_factor )
+    sigma = -stats . norm . ppf (p /2.)
+    return sigma
+
+def extract_white_lc( data ):
+    """
+    Extracts the white light curve from an xarray object and modifies the format.
+    """
+    
+    print(data.keys())
+    # dictionary = { 'bmjd_tdb' : np.array(data.time) }
+    # dictionary['wavEdgesMicr'] = np.array([np.min(data.wave_low), np.max(data.wave_hi)])
+    # dictionary['lcVals'], dictionary['lcUncs'] = normalize_lightcurve( data.flux_white, data.err_white )
+    # dictionary['t'] = standardized_time(data.time)
+    
+    # # Remove NaNs
+    # count = 0
+    # i = 0
+    # while (i < len(dictionary['lcVals'])):
+    #     if np.isnan(dictionary['lcVals'][i]) or np.isnan(dictionary['lcUncs'][i]) or np.isnan(dictionary['bmjd_tdb'][i]):
+    #         dictionary = remove_outlier( dictionary, i )
+    #         count += 1
+    #     else:
+    #         i += 1
+    
+    # print('Removed outliers because of NaN:', count)
+    # return dictionary
+
+def extract_spec_lc( data ):
+    """
+    Extracts the spectroscopic light curves from an xarray object and modifies the format.
+    """
+    
+    dictionary = {}
+    n_chan, n_int = np.shape( data.data )
+    for i in range(n_chan):
+        dictionary[str(i)] = {}
+        dictionary[str(i)]['bmjd_tdb'] = np.array(data.time)
+        dictionary[str(i)]['lcVals'], dictionary[str(i)]['lcUncs'] = normalize_lightcurve( data.data[i,:], data.err[i,:] )
+        dictionary[str(i)]['wavEdgesMicr'] = np.array( [data.wave_low[i], data.wave_hi[i]] )
+        dictionary[str(i)]['t'] = standardized_time(data.time)
+        
+        # Remove NaNs
+        count = 0
+        j = 0
+        while (j < len(dictionary[str(i)]['lcVals'])):
+            if np.isnan(dictionary[str(i)]['lcVals'][j]) or np.isnan(dictionary[str(i)]['lcUncs'][j]) or np.isnan(dictionary[str(i)]['bmjd_tdb'][j]):
+                dictionary[str(i)] = remove_outlier( dictionary[str(i)], j )
+                count += 1
+            else:
+                j += 1
+        print(i, 'removed outliers because of NaN:', count)
+        
+    return dictionary
 
 def kick_out_nans( x,y ):
     
@@ -1106,6 +1171,14 @@ def calculate_binned_errorbars( errors, indices, n ):
     
     return binned_errors
 
+def gaussian_error_propagation( errors ):
+    
+    final_error = 0.
+    for error in errors:
+        final_error += error**2
+    
+    return np.sqrt(final_error)/len(errors)
+
 def prepare_transmission_dictionary( fit_parameters, nchan, only_varied_params=False, outliers=False, asymmetric_errors=False, bic=False ):
     """
     Write down the transmission spectrum's wavelengths, chisquare values and fit parameters
@@ -1262,12 +1335,21 @@ def transit_and_eclipses_white( inp ):
         
         outp[k] = {}
         for key in ['bjd_tdb', 'x_shift', 'y_shift', 'lcVals', 'lcUncs']:
-            outp[k][key] = np.array([])
+            try:
+                outp[k][key] = np.array([])
+            except KeyError:
+                pass
         for i in range(n):
             if (bjd[i]>2459866.96668 and bjd[i]<2459867.048) or (bjd[i]>2459868.23894 and bjd[i]<2459868.32446) or (thr[i]>-pr.CUTOUT_HALFTIME and thr[i]<pr.CUTOUT_HALFTIME):
                 for key in ['bjd_tdb', 'x_shift', 'y_shift', 'lcVals', 'lcUncs']:
-                    outp[k][key] = np.append( outp[k][key], inp[k][key][i])
-        outp[k]['wavEdgesMicr'] = inp[k]['wavEdgesMicr']
+                    try:
+                        outp[k][key] = np.append( outp[k][key], inp[k][key][i])
+                    except KeyError:
+                        pass
+        try:
+            outp[k]['wavEdgesMicr'] = inp[k]['wavEdgesMicr']
+        except KeyError:
+            pass
         
     return outp
 

@@ -42,7 +42,7 @@ else:
     number_of_steps = 200
     burn_number = 10
 
-lc = Utils.pickle_read( os.path.join(pr.SPEC_DIR, pr.LC_FILE) )
+lc = Utils.pickle_read( os.path.join(pr.SPEC_DIR, pr.LC_EDITED_FILE) )
 channels = list( lc.keys() )
 nchan = len( channels )
 prelim_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.FIT_FILE) )

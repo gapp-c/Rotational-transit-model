@@ -57,7 +57,7 @@ broad_fit_params = broad_fit['max_probabilities']
 # broad_fit = Utils.pickle_read( os.path.join(broadfit_in_dir, pr.FIT_FILE) )
 # broad_fit_params = broad_fit.params.valuesdict()
 
-spec_lc = Utils.pickle_read( os.path.join( pr.SPEC_DIR, pr.LC_FILE ) )
+spec_lc = Utils.pickle_read( os.path.join( pr.SPEC_DIR, pr.LC_EDITED_FILE ) )
 trans_spec = Utils.pickle_read( os.path.join( trans_in_dir, pr.TRANS_FILE) )
 
 # Calculate the median of the parameter uncertainties as typical values to replace any nan uncertainty 

@@ -42,7 +42,7 @@ else:
     number_of_steps = 20000
     burn_number = 4000
 
-broad_lc = Utils.pickle_read( os.path.join(pr.BROAD_DIR, pr.LC_FILE) )
+broad_lc = Utils.pickle_read( os.path.join(pr.BROAD_DIR, pr.LC_EDITED_FILE) )
 detectors = list(broad_lc.keys())
 prelim_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.FIT_FILE) )
 

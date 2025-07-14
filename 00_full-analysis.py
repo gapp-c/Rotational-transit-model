@@ -16,8 +16,8 @@ with open('parameters.py', 'r') as f:
     f.close()
 
 # Full analysis
-files2run = np.arange(16) + 1
-# files2run = [1,2,3,4,10,11,12,13]
+# files2run = np.arange(16) + 1
+files2run = [1,6,7,8]
 
 for file2run in files2run:
     if file2run < 10:

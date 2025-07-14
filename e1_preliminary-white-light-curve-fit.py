@@ -43,9 +43,16 @@ detectors = ['NRS1', 'NRS2']
 broad_lc = {}
 for detector in detectors:
     broad_lc[detector] = {}
-    broad_lc[detector]['t'], broad_lc[detector]['lcVals'], broad_lc[detector]['lcUncs'] = np.loadtxt( os.path.join(pr.WORK_DIR, 'eureka', 'WASP-121b_' + detector + '_WL.txt'), unpack=True )
-    broad_lc[detector]['bjd_tdb'] = broad_lc[detector]['t'] + pr.TIME_0 + pr.TRANSIT_MID_TIME
+    broad_lc[detector]['bmjd_tdb'], broad_lc[detector]['lcVals'], broad_lc[detector]['lcUncs'] = \
+        np.loadtxt( os.path.join(pr.EUREKA_DIR, 'WASP-121b_' + detector + '_WL_full.txt'), unpack=True )
+    broad_lc[detector]['bjd_tdb'] = broad_lc[detector]['bmjd_tdb'] + 2400000.5
+
+broad_lc = Utils.transit_and_eclipses_white(broad_lc)
+
+for detector in detectors:
+    broad_lc[detector]['t'] = Utils.standardized_time( broad_lc[detector]['bjd_tdb'] )
     broad_lc[detector] = Utils.remove_nans( broad_lc[detector] )
+    broad_lc[detector]['lcVals'], broad_lc[detector]['lcUncs'] = Utils.normalize_lightcurve( broad_lc[detector]['lcVals'], broad_lc[detector]['lcUncs'] )
 
 broad_lc['NRS1']['u1'] = 0.06585945520225178
 broad_lc['NRS1']['u2'] = 0.11265248382653993
@@ -56,8 +63,6 @@ broad_lc['NRS2']['u1'] = 0.05605071953777346
 broad_lc['NRS2']['u2'] = 0.09230747753839463
 broad_lc['NRS2']['u1_err'] = 0.009485355297039812
 broad_lc['NRS2']['u2_err'] = 0.012333638781348886
-
-# Plot.lightcurves(broad_lc)
 
 # First, initialize a batman model for every data point to change the transit radius as a function of time
 batpar = {}
@@ -78,5 +83,6 @@ for nrs in detectors:
     model[nrs] = calculateBatmanModel.Broad( prelim_fit.params.valuesdict(), broad_lc[nrs], batpar[nrs], batmodel[nrs], nrs )
 
 # Output
+Utils.pickle_save( os.path.join(pr.BROAD_DIR, 'eureka'), pr.LC_FILE, broad_lc )
 Utils.pickle_save( fit_out_dir, pr.FIT_FILE, prelim_fit )
-Plot.white_light_curves( broad_lc, prelim_fit.params.valuesdict(), opath=os.path.join(fit_out_dir, 'rotational_model') )
+Plot.white_light_curves( broad_lc, prelim_fit.params.valuesdict(), opath=os.path.join(fit_out_dir, 'lcfit') )

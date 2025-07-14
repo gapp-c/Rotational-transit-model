@@ -43,7 +43,7 @@ trans_out_dir = os.path.join( pr.SPEC_DIR, pr.TRANS_DIR, pr.MCMC_DIR )
 ######## Input ########
 broad_fit = Utils.pickle_read( os.path.join( broadfit_in_dir, pr.PARAMETERS_FILE) )
 broad_fit_params = broad_fit['max_probabilities']
-spec_lc = Utils.pickle_read( os.path.join( pr.SPEC_DIR, pr.LC_FILE ) )
+spec_lc = Utils.pickle_read( os.path.join( pr.SPEC_DIR, pr.LC_EDITED_FILE ) )
 
 keys = list(spec_lc.keys())
 nchan = len(keys)

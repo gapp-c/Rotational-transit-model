@@ -65,16 +65,15 @@ for i, k in enumerate(keys):
     # Preliminary fit for sigma clipping
     p0  = initialParameters.Spec( broad_fit_params, spec_lc[k]['detector'], spec_lc[k]['u1'], spec_lc[k]['u2'] )
     prelim_fit = minimize( calc_residuals, p0, args=(spec_lc[k], batpar, batmodel) )
-    prelim_fit.params.pretty_print()
-    # spec_lc[k] = Utils.sigma_clipping_spec( spec_lc[k], prelim_fit.params, broad_fit_params, pr.SIGMA_CLIPPING )
+    spec_lc[k] = Utils.sigma_clipping_spec( spec_lc[k], prelim_fit.params, broad_fit_params, pr.SIGMA_CLIPPING )
     
-    # if 'outliers' in spec_lc[k].keys():
-    #     if spec_lc[k]['outliers'] > 0:
-    #         # Re-initiate the batman model to accomodate fewer data points
-    #         batpar, batmodel = calculateBatmanModel.create_Batman_object( spec_lc[k]['bjd_tdb'] )
-    #         batpar = calculateBatmanModel.fix_broad_fit_parameters( batpar, broad_fit_params )
+    # Re-initiate the batman model to accomodate fewer data points
+    batpar, batmodel = calculateBatmanModel.create_Batman_arrays( spec_lc[k]['bjd_tdb'] )
+    for j in range(len(batpar)):
+        batpar[j] = calculateBatmanModel.fix_broad_fit_parameters(batpar[j], broad_fit_params)
     
-    # spec_fit = minimize( calc_residuals, prelim_fit.params, args=(spec_lc[k], batpar, batmodel) )
+    spec_fit = minimize( calc_residuals, prelim_fit.params, args=(spec_lc[k], batpar, batmodel) )
+    spec_fit.params.pretty_print()
     Utils.pickle_save( fit_out_dir, k, prelim_fit )
     
     trans_spec = Utils.add_lmfit_params_2_transmission_spectrum( trans_spec, i, spec_lc[k]['wavEdgesMicr'], prelim_fit.params )
@@ -83,6 +82,6 @@ for i, k in enumerate(keys):
     model = calculateBatmanModel.Spec( prelim_fit.params.valuesdict(), spec_lc[k], batpar, batmodel )
     Plot.spectral_light_curve( spec_lc[k], model, unit=1.0E-6, opath=os.path.join(fit_out_dir, k) )
 
-# # Output
-# Utils.pickle_save( pr.SPEC_DIR, pr.LC_SPEC_FILE_SIGMA, spec_lc )
+# Output
+Utils.pickle_save( pr.SPEC_DIR, pr.LC_EDITED_FILE, spec_lc )
 Utils.pickle_save( trans_out_dir, pr.TRANS_FILE, trans_spec )

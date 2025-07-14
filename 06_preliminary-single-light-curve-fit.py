@@ -48,7 +48,7 @@ for i, molecule in enumerate(pr.MOLECULES):
     
     # GO
     p0 = initialParameters.Spec( broad_fit_params, lc['detector'], lc['u1'], lc['u2'] )
-    
+    p0.pretty_print()
     print('---------', molecule, 'light curve: Rotational fit ---------')
     rotational_fit = minimize( calc_residuals, p0, args=(lc, batpar, batmodel) )
     

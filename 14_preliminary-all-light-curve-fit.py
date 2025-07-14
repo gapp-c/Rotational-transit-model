@@ -46,7 +46,7 @@ broad_fit_params = broad_fit['max_probabilities']
 fit_out_dir = os.path.join( pr.SPEC_DIR, 'all_' + pr.PRELIM_DIR )
 
 ######## Input ########
-lc = Utils.pickle_read( os.path.join(pr.SPEC_DIR, pr.LC_FILE) )
+lc = Utils.pickle_read( os.path.join(pr.SPEC_DIR, pr.LC_EDITED_FILE) )
 channels = list( lc.keys() )
 nchan = len( channels )
 

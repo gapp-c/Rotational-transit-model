@@ -24,7 +24,7 @@ def Broad( broad_lc ):
     else:
         pars.add('inc', value = pr.ORBITAL_INCLINATION['median'], max=90. )
     
-    if not(pr.FIT_TMID_SPEC):
+    if not(pr.FIT_TMID_SPEC or pr.FIT_TMID_DETECTORS):
         pars.add('Tmid', value = pr.TRANSIT_MID_TIME)
     if not(pr.FIT_ROTATION_2_SPEC):
         pars.add('R2', value = 0.0, vary=pr.ROTATION_2)
@@ -34,7 +34,7 @@ def Broad( broad_lc ):
     # Loop for parameters that are different between both detectors
     for nrs in detectors:
         
-        if pr.FIT_TMID_SPEC:
+        if pr.FIT_TMID_SPEC or pr.FIT_TMID_DETECTORS:
             pars.add('Tmid_' + nrs, value = pr.TRANSIT_MID_TIME)
         
         pars.add('R0_' + nrs, value = pr.PHASECURVE_RP_RS[nrs] )
@@ -172,7 +172,7 @@ def Spec( broad_fit_params, detector, u1, u2 ):
             pars.add('b', value = broad_fit_params['b'], min=0., max=1. )
         else:
             pars.add('inc', value = broad_fit_params['inc'], max=90. )
-            
+    
     pars.add('R0', value = broad_fit_params['R0_' + detector])
     pars.add('R1', value = broad_fit_params['R1_' + detector], vary=pr.ROTATION_1)
     pars.add('R2', value = broad_fit_params['R2_' + detector], vary=pr.ROTATION_2)
@@ -180,9 +180,11 @@ def Spec( broad_fit_params, detector, u1, u2 ):
         pars['R2'].max = 0.0
     
     if pr.FIT_TMID_SPEC:
-        pars.add('Tmid', value = broad_fit_params['Tmid_' + detector], vary = pr.FIT_TMID_SPEC)
+        pars.add('Tmid', value = broad_fit_params['Tmid_' + detector], vary = True)
+    elif pr.FIT_TMID_DETECTORS:
+        pars.add('Tmid', value = broad_fit_params['Tmid_' + detector], vary = False)
     else:
-        pars.add('Tmid', value = broad_fit_params['Tmid'], vary = pr.FIT_TMID_SPEC)
+        pars.add('Tmid', value = broad_fit_params['Tmid'], vary = False)
     
     if pr.BASELINE_SPEC == 'constant':
         pars.add('baseline', value = broad_fit_params['baseline_' + detector])
@@ -229,6 +231,9 @@ def all_lcs( lc, broad_fit_params ):
     
     if not(pr.FIT_TMID_SPEC):
         pars.add('Tmid', value = pr.TRANSIT_MID_TIME)
+    elif pr.FIT_TMID_DETECTORS:
+        for nrs in ['NRS1', 'NRS2']:
+            pars.add('Tmid_' + nrs, value = pr.TRANSIT_MID_TIME)
     if not(pr.FIT_ROTATION_2_SPEC):
         pars.add('R2', value=0)
     

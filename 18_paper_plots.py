@@ -41,7 +41,7 @@ import matplotlib.pyplot as plt
 
 # Plot.lightcurves(lc)
 
-#%% WHITE LIGHT CURVE FITS
+#%% WHITE LIGHT CURVE FITS, FIREFLY
 
 fit_directories = [os.path.join(pr.WORK_DIR, '250429_translational'), os.path.join(pr.WORK_DIR, '250429_quadratic')]
 models = ['$\mathcal{M}_{tra}$', '$\mathcal{M}_{rot}$']
@@ -64,40 +64,97 @@ for i, model in enumerate(models):
     
     # Plot.white_light_curves( lc, plot_params[model], emcee_result=mcmc_chains[model] )
     
-Plot.white_lightcurves_n_models_zoom( lc, plot_params, emcee_result=mcmc_chains, opath=os.path.join(fit_directories[0], 'white', 'white_lightcurve_fits') )
+Plot.white_lightcurves_n_models_zoom( lc, plot_params, emcee_result=mcmc_chains, scale_errorbars=True, opath=os.path.join(fit_directories[0], 'white', 'white_lightcurve_fits_firefly') )
 
-#%% Significances transit-only
+#%% WHITE LIGHT CURVE FITS, EUREKA!
 
-lcs = ['Firefly', 'Eureka!']
-lnZ0 = [9626.58, 9463.618]
-lnZ1 = [9640.75, 9489.482]
-lnZ2 = [9636.56, 9484.989]
-print('Data reduction, Bayes factor(1-0), sigma significance (1-0), Bayes factor(2-0), sigma significance (2-0), Bayes factor(1-2), sigma significance (1-2)')
-for i in range(len(lcs)):
-    B1 = np.exp(lnZ1[i]-lnZ0[i])
-    sigma1 = Utils.bayes2Nsigma(B1)
-    B2 = np.exp(lnZ2[i]-lnZ0[i])
-    sigma2 = Utils.bayes2Nsigma(B2)
-    B12 = np.exp(lnZ1[i]-lnZ2[i])
-    sigma12 = Utils.bayes2Nsigma(B12)
-    print( lcs[i], B1, sigma1, B2, sigma2, B12, sigma12)
+fit_directories = [os.path.join(pr.WORK_DIR, '250514_translational'), os.path.join(pr.WORK_DIR, '250514_quadratic')]
+models = ['$\mathcal{M}_{tra}$', '$\mathcal{M}_{rot}$']
+
+lc = Utils.pickle_read( os.path.join(fit_directories[0], 'white', 'eureka', pr.LC_FILE) )
+
+# Read all models' best fit parameters and sample chains
+mcmc_chains = {}
+mcmc_params = {}
+plot_params = {}
+for i, model in enumerate(models):
+    fit_directory = fit_directories[i]
+    
+    prelim_fit = Utils.pickle_read( os.path.join(fit_directory, 'white', 'eureka', pr.PRELIM_DIR, pr.FIT_FILE) )
+    mcmc_chains[model] = Utils.pickle_read( os.path.join(fit_directory, 'white', 'eureka', pr.MCMC_DIR, pr.CHAIN_FILE) )
+    mcmc_params[model] = Utils.emcee_distributions_into_dictionaries( mcmc_chains[model] )
+    plot_params[model] = mcmc_params[model]['max_probabilities']
+    plot_params[model] = Utils.merge_dictionaries(plot_params[model], prelim_fit.params.valuesdict())
+    # plot_params[model] = prelim_fit.params.valuesdict()
+    
+    # Plot.white_light_curves( lc, plot_params[model], emcee_result=mcmc_chains[model] )
+    
+Plot.white_lightcurves_n_models_zoom( lc, plot_params, emcee_result=mcmc_chains, scale_errorbars=True, opath=os.path.join(fit_directories[0], 'white', 'eureka', 'white_lightcurve_fits_eureka') )
+
+#%% CO LIGHT CURVE FITS
+
+directories = [os.path.join(pr.WORK_DIR + '_soss', '250514'), os.path.join(pr.WORK_DIR, '250429')]
+reductions = ['JWST/NIRISS', 'JWST/NIRSpec']
+models = ['translational', 'linear']
+
+# Read all models' best fit parameters and sample chains
+lcs = {}
+mcmc_chains = {}
+mcmc_params = {}
+plot_params = {}
+for i, reduction in enumerate(reductions):
+    lcs[reduction] = Utils.pickle_read( os.path.join(directories[i] + '_' + models[0], 'single', pr.LC_FILE) )
+    
+    mcmc_chains[reduction] = {}
+    plot_params[reduction] = {}
+    for j, model in enumerate(models):
+        fit_directory = directories[i] + '_' + model
+        
+        prelim_fit = Utils.pickle_read( os.path.join(fit_directory, 'single', pr.PRELIM_DIR, pr.FIT_FILE) )
+        mcmc_chains[reduction][model] = Utils.pickle_read( os.path.join(fit_directory, 'single', pr.MCMC_DIR, pr.CHAIN_FILE) )
+        mcmc_params = Utils.emcee_distributions_into_dictionaries( mcmc_chains[reduction][model] )
+        max_likelihood_params = mcmc_params['max_probabilities']
+        plot_params[reduction][model] = Utils.merge_dictionaries(max_likelihood_params, prelim_fit.params.valuesdict())
+        
+        # Add orbital parameters into NIRSpec reduction
+        if reduction == 'JWST/NIRSpec':
+            white_fit = Utils.pickle_read( os.path.join(fit_directory, 'white', pr.MCMC_DIR, pr.PARAMETERS_FILE) )
+            plot_params[reduction][model] = Utils.merge_dictionaries( plot_params[reduction][model], white_fit['max_probabilities'] )
+
+Plot.n_lightcurves_m_models_zoom( lcs, plot_params, emcee_result=mcmc_chains, scale_errorbars=True, opath=os.path.join(directories[-1] + '_' + models[0], 'single', 'co_lightcurve_fits') )
+
+
+# #%% Significances transit-only
+
+# lcs = ['Firefly', 'Eureka!']
+# lnZ0 = [9626.58, 9463.618]
+# lnZ1 = [9640.75, 9489.482]
+# lnZ2 = [9636.56, 9484.989]
+# print('Data reduction, Bayes factor(1-0), sigma significance (1-0), Bayes factor(2-0), sigma significance (2-0), Bayes factor(1-2), sigma significance (1-2)')
+# for i in range(len(lcs)):
+#     B1 = np.exp(lnZ1[i]-lnZ0[i])
+#     sigma1 = Utils.bayes2Nsigma(B1)
+#     B2 = np.exp(lnZ2[i]-lnZ0[i])
+#     sigma2 = Utils.bayes2Nsigma(B2)
+#     B12 = np.exp(lnZ1[i]-lnZ2[i])
+#     sigma12 = Utils.bayes2Nsigma(B12)
+#     print( lcs[i], B1, sigma1, B2, sigma2, B12, sigma12)
 
 #%% Significances transit+eclipses
 
 lcs = ['Firefly', 'Eureka!']
-lnZ0 = [15122.641, 9463.618]
-lnZ1 = [15136.765, 9489.482]
-lnZ2 = [15134.797, 9484.989]
-print('Data reduction, Bayes factor(1-0), sigma significance (1-0), Bayes factor(2-0), sigma significance (2-0), Bayes factor(1-2), sigma significance (1-2)')
+lnZ0 = [15122.641, 14892.17]
+lnZ1 = [15136.765, 14914.49]
+lnZ2 = [15134.797, 14914.91]
+print('Data reduction, Bayes factor(2-0), sigma significance (2-0), Bayes factor(1-0), sigma significance (1-0), Bayes factor(1-2), sigma significance (1-2)')
 for i in range(len(lcs)):
-    B1 = np.exp(lnZ1[i]-lnZ0[i])
-    sigma1 = Utils.bayes2Nsigma(B1)
     B2 = np.exp(lnZ2[i]-lnZ0[i])
     sigma2 = Utils.bayes2Nsigma(B2)
+    B1 = np.exp(lnZ1[i]-lnZ0[i])
+    sigma1 = Utils.bayes2Nsigma(B1)
     B12 = np.exp(lnZ1[i]-lnZ2[i])
     sigma12 = Utils.bayes2Nsigma(B12)
-    print( lcs[i], B1, sigma1, B2, sigma2, B12, sigma12)
-
+    print( lcs[i], B2, sigma2, B1, sigma1, B12, sigma12)
 
 #%% R_p(t) plots
 
@@ -225,8 +282,8 @@ sigma_shading = [1.]#, 2., 3.]
 alpha_shading = 0.2
 
 # Which observations to plot
-fit_dirs = ['250429_linear']#, '250429_quadratic_ldc-priors', '250429_quadratic']
-fit_labels = ['Linear $R_p/R_*(t)$, uniform priors on LDCs', 'Quadratic $R_p/R_*(t)$, Gaussian priors on LDCs', 'Quadratic $R_p/R_*(t)$, uniform priors on LDCs']
+fit_dirs = ['250429_linear', '250429_quadratic_ldc-priors', '250429_quadratic']
+fit_labels = ['$R_2/R_*=0$, uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, uniform priors on LDCs']
 
 # Read models
 model_files = ["output_nominal"]#, "co_removed_from_morning"]

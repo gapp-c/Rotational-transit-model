@@ -43,7 +43,7 @@ broad_fit_params = broad_fit['max_probabilities']
 # broad_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.FIT_FILE) )
 # broad_fit_params = broad_fit.params.valuesdict()
 
-for i, molecule in enumerate(pr.MOLECULES):
+for i, molecule in enumerate([]):
     
     specfit_in_dir = os.path.join( pr.RESULTS_DIR, molecule, pr.PRELIM_DIR )
     specfit_out_dir = os.path.join( pr.RESULTS_DIR, molecule, pr.NESTED_DIR )

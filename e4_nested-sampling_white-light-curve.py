@@ -34,24 +34,9 @@ fit_out_dir = os.path.join( pr.BROAD_DIR, 'eureka', pr.NESTED_DIR )
 
 ######## Input ########
 
-detectors = ['NRS1', 'NRS2']
-broad_lc = {}
-for detector in detectors:
-    broad_lc[detector] = {}
-    broad_lc[detector]['t'], broad_lc[detector]['lcVals'], broad_lc[detector]['lcUncs'] = np.loadtxt( os.path.join(pr.WORK_DIR, 'eureka', 'WASP-121b_' + detector + '_WL.txt'), unpack=True )
-    broad_lc[detector]['bjd_tdb'] = broad_lc[detector]['t'] + pr.TIME_0 + pr.TRANSIT_MID_TIME
-    broad_lc[detector] = Utils.remove_nans( broad_lc[detector] )
 prelim_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.FIT_FILE) )
-
-broad_lc['NRS1']['u1'] = 0.06585945520225178
-broad_lc['NRS1']['u2'] = 0.11265248382653993
-broad_lc['NRS1']['u1_err'] = 0.011569608991181486
-broad_lc['NRS1']['u2_err'] = 0.015043755034295784
-
-broad_lc['NRS2']['u1'] = 0.05605071953777346
-broad_lc['NRS2']['u2'] = 0.09230747753839463
-broad_lc['NRS2']['u1_err'] = 0.009485355297039812
-broad_lc['NRS2']['u2_err'] = 0.012333638781348886
+broad_lc = Utils.pickle_read( os.path.join(pr.BROAD_DIR, 'eureka', pr.LC_FILE) )
+detectors = list(broad_lc.keys())
 
 # MCMC. Caution with the paralellization, this part has to be run outside of a function!
 p0 = prelim_fit.params

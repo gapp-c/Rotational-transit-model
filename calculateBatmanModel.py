@@ -59,7 +59,7 @@ def Broad( pars, z, batpar, batmodel, nrs ):
     
     n = len(z['t'])
     
-    if pr.FIT_TMID_SPEC:
+    if pr.FIT_TMID_SPEC or pr.FIT_TMID_DETECTORS:
         Tmid = pars['Tmid_' + nrs] + pr.TIME_0
     else:
         Tmid = pars['Tmid'] + pr.TIME_0
@@ -143,6 +143,73 @@ def Spec( pars, z, batpar, batmodel ):
     
     return baseline * (transit_model + partial_phasecurve)
 
+def Single_soss( pars, z, batpar, batmodel ):
+    
+    t = z['t']
+    # print(t)
+    baseline = pars['c0'] + pars['c1']*t
+    
+    n = len(t)
+    Tmid = pars['Tmid'] + 2460244.
+    transit_model = np.zeros(n)
+    for i in range(n):
+        batpar[i].t0 = Tmid
+        batpar[i].a = pars['aRs']
+        if pr.IMPACT_PARAMETER:
+            batpar[i].inc = Utils.impact_parameter2inc(pars['b'], pars['aRs'])
+        else:
+            batpar[i].inc = pars['inc']
+        
+        rprs = pars['R0'] + pars['R1'] * (z['bjd_tdb'][i]-Tmid) + pars['R2'] * (z['bjd_tdb'][i]-Tmid)**2
+        batpar[i].rp = rprs
+        
+        if pr.KIPPING_LD_PARAMETERS:
+            u1, u2 = Utils.LD_coefficients_q2u( pars['q1'], pars['q2'] )
+            batpar[i].u = [ u1, u2 ]
+        else:
+            batpar[i].u = [ pars['u1'], pars['u2'] ]
+        
+        transit_model[i] = batmodel[i].light_curve( batpar[i] )
+    
+    partial_phasecurve = np.zeros(n)
+    for i in range(n):
+        if t[i] > 0.6 and t[i] < 1.4:
+            partial_phasecurve[i] = pars['p0'] + pars['p1']*t[i] + pars['p2']*t[i]**2
+    
+    return baseline * (transit_model + partial_phasecurve)
+
+def Single( pars, z, batpar, batmodel ):
+    
+    baseline = pars['c0'] + pars['c1']*z['t']
+    
+    n = len(z['t'])
+    Tmid = pars['Tmid'] + pr.TIME_0
+    transit_model = np.zeros(n)
+    for i in range(n):
+        batpar[i].t0 = Tmid
+        batpar[i].a = pars['aRs']
+        if pr.IMPACT_PARAMETER:
+            batpar[i].inc = Utils.impact_parameter2inc(pars['b'], pars['aRs'])
+        else:
+            batpar[i].inc = pars['inc']
+        
+        rprs = pars['R0'] + pars['R1'] * (z['bjd_tdb'][i]-Tmid) + pars['R2'] * (z['bjd_tdb'][i]-Tmid)**2
+        batpar[i].rp = rprs
+        
+        if pr.KIPPING_LD_PARAMETERS:
+            u1, u2 = Utils.LD_coefficients_q2u( pars['q1'], pars['q2'] )
+            batpar[i].u = [ u1, u2 ]
+        else:
+            batpar[i].u = [ pars['u1'], pars['u2'] ]
+        
+        transit_model[i] = batmodel[i].light_curve( batpar[i] )
+    
+    partial_phasecurve = np.zeros(n)
+    for i in range(n):
+        if z['t'][i] > 0.2 and z['t'][i] < 1.0:
+            partial_phasecurve[i] = pars['p0'] + pars['p1']*z['t'][i] + pars['p2']*z['t'][i]**2
+    
+    return baseline * (transit_model + partial_phasecurve)
 
 def all_lcs( pars, z, batpar, batmodel, ch ):
     """
@@ -160,6 +227,8 @@ def all_lcs( pars, z, batpar, batmodel, ch ):
     
     if pr.FIT_TMID_SPEC:
         Tmid = pars['Tmid_' + ch] + pr.TIME_0
+    elif pr.FIT_TMID_DETECTORS:
+        Tmid = pars['Tmid_' + z['detector']] + pr.TIME_0
     else:
         Tmid = pars['Tmid'] + pr.TIME_0
     

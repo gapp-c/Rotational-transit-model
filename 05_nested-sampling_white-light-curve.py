@@ -34,7 +34,7 @@ fit_out_dir = os.path.join( pr.BROAD_DIR, pr.NESTED_DIR )
 
 ######## Input ########
 
-broad_lc = Utils.pickle_read( os.path.join(pr.BROAD_DIR, pr.LC_FILE) )
+broad_lc = Utils.pickle_read( os.path.join(pr.BROAD_DIR, pr.LC_EDITED_FILE) )
 detectors = list(broad_lc.keys())
 prelim_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.FIT_FILE) )
 

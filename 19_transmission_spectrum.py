@@ -31,37 +31,28 @@ import numpy as np
 import Utils, Plot
 import parameters as pr
 import matplotlib.pyplot as plt
-
-#%% COMPARISON TRANSLATIONAL & ROTATIONAL MODEL
-
-px = '10'
-
-# Set directories
-rot_dir = os.path.join( pr.ASTRONODE_DIR, '250317' )
-trans_dir = os.path.join( pr.WORK_DIR, '240805', px + '_pixel_columns', pr.TRANS_DIR, pr.MCMC_DIR )
-
-# Input
-rot_spec = Utils.pickle_read( os.path.join(rot_dir, px + 'px_lc-fit') )
-trans_spec = Utils.pickle_read( os.path.join(trans_dir, px + 'px_lc-fit') )
-
-rot_spec['RpRs'] = rot_spec['R0']
-
-# Plot.planet_rotation( rot_spec, opath = os.path.join(rot_dir, 'rotational_spectrum') )
-Plot.Transmission_Spectrum_2runs_errorbars_residuals( {'Translational model' : trans_spec, 'Rotational model' : rot_spec}, \
-                                                      transit_depth_unit=1.0E-2, transit_depth_limits=[1.4, 1.65], uncertainty_unit=1.0E-6, \
-                                                          uncertainty_limits=[50.,800.], residual_limits=[-100., 100.], opath = os.path.join(rot_dir, 'transmission_spectrum') )
+from scipy.stats import binned_statistic
 
 #%% PLOT ROTATIONAL SIGNAL
 
 # Data
 trans_folders = ['250429_linear', '250429_quadratic_ldc-priors', '250429_quadratic']
 trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs']
-model_files = ['output_nominal']#, 'output_co_tweak', 'output_t_tweak']
-model_labels = ['SPARC/MITgcm', 'CO removed from morning', 'Temperature tweak']
+lc = Utils.pickle_read( os.path.join(pr.WORK_DIR, trans_folders[0], 'spec', pr.LC_FILE) )
+
+lc_keys = list(lc.keys())
+ldcs = {'u1' : [], 'u1_err' : [], 'u2' : [], 'u2_err' : []}
+for ldc in ldcs.keys():
+    for lc_key in lc_keys:
+        ldcs[ldc] += [lc[lc_key][ldc]]
+
+# Models
+model_files = ['output_nominal', 'output_t_tweak', 'output_co_tweak']
+model_labels = ['SPARC/MITgcm, nominal', 'SPARC/MITgcm, T modification', 'SPARC/MITgcm, T modification and CO']#'#C/O=0.92']
 
 trans_spec = {}
 for i, trans_folder in enumerate(trans_folders):
-    trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, pr.MCMC_DIR)
+    trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
     trans_spec[trans_labels[i]] = Utils.pickle_read( os.path.join(trans_dir, pr.TRANS_FILE ) )
 
 models = {}
@@ -78,6 +69,155 @@ for i, model_file in enumerate(model_files):
     models[model_labels[i]] = Utils.twoD_lc2coefficients( time, rprs, wvls )
 
 Plot.planet_rotation_nruns( trans_spec, models=models, opath = os.path.join(trans_dir, 'rotational_spectrum') )
+# Plot.all_fit_parameters( trans_spec[trans_labels[0]], LDcoefficients=ldcs, opath=os.path.join(pr.WORK_DIR, trans_folders[0], 'spec', pr.TRANS_DIR, '' + pr.MCMC_DIR, 'all_fit_params') )
+
+# DATA: Transit depth
+h2o_R0 = Utils.error_weighted_mean( trans_spec[trans_labels[0]]['R0']['value'][:6], trans_spec[trans_labels[0]]['R0']['stderr'][:6] )
+co_R0 = Utils.error_weighted_mean( trans_spec[trans_labels[0]]['R0']['value'][-5:], trans_spec[trans_labels[0]]['R0']['stderr'][-5:] )
+print('H2O:', h2o_R0)
+print('CO:', co_R0)
+
+# DATA: R1
+conversion = 1.0E6/24.
+h2o_R1 = Utils.error_weighted_mean( trans_spec[trans_labels[0]]['R1']['value'][:6]*conversion, trans_spec[trans_labels[0]]['R1']['stderr'][:6]*conversion )
+h2o_R1_err = Utils.gaussian_error_propagation( trans_spec[trans_labels[0]]['R1']['stderr'][:6]*conversion )
+co_R1 = Utils.error_weighted_mean( trans_spec[trans_labels[0]]['R1']['value'][-5:]*conversion, trans_spec[trans_labels[0]]['R1']['stderr'][-5:]*conversion )
+co_R1_err = Utils.gaussian_error_propagation( trans_spec[trans_labels[0]]['R1']['stderr'][-5:]*conversion )
+sio_R1 = Utils.error_weighted_mean( trans_spec[trans_labels[0]]['R1']['value'][7:9]*conversion, trans_spec[trans_labels[0]]['R1']['stderr'][7:9]*conversion )
+sio_R1_err = Utils.gaussian_error_propagation( trans_spec[trans_labels[0]]['R1']['stderr'][7:9]*conversion )
+print('H2O:', h2o_R1, '+/-', h2o_R1_err, 'ppm/hr')
+print('CO:', co_R1, '+/-', co_R1_err, 'ppm/hr')
+print('SiO:', sio_R1, '+/-', sio_R1_err, 'ppm/hr')
+
+# MODEL
+h2o_interval = [trans_spec[trans_labels[0]]['wavelength'][0] - trans_spec[trans_labels[0]]['wavelength_halfwidth'][0], trans_spec[trans_labels[0]]['wavelength'][5] + trans_spec[trans_labels[0]]['wavelength_halfwidth'][5]]
+h2o_model, applied_bin_edges, indices = binned_statistic( models[model_labels[0]]['wavelength'], models[model_labels[0]]['R1']*conversion, bins=h2o_interval )
+print('Model, H2O:', h2o_model[0], 'ppm/hr')
+
+co_interval = [trans_spec[trans_labels[0]]['wavelength'][9] - trans_spec[trans_labels[0]]['wavelength_halfwidth'][9], trans_spec[trans_labels[0]]['wavelength'][13] + trans_spec[trans_labels[0]]['wavelength_halfwidth'][13]]
+co_model, applied_bin_edges, indices = binned_statistic( models[model_labels[0]]['wavelength'], models[model_labels[0]]['R1']*conversion, bins=co_interval )
+print('Model, CO:', co_model[0], 'ppm/hr')
+
+sio_interval = [trans_spec[trans_labels[0]]['wavelength'][7] - trans_spec[trans_labels[0]]['wavelength_halfwidth'][7], trans_spec[trans_labels[0]]['wavelength'][8] + trans_spec[trans_labels[0]]['wavelength_halfwidth'][8]]
+sio_model, applied_bin_edges, indices = binned_statistic( models[model_labels[0]]['wavelength'], models[model_labels[0]]['R1']*conversion, bins=sio_interval )
+print('Model, SiO:', sio_model[0], 'ppm/hr')
+# #%%
+
+# for i in range(len(broad_lc['NRS2']['bjd_tdb'])):
+#     print((broad_lc['NRS2']['bjd_tdb'][i]-broad_lc['NRS1']['bjd_tdb'][i])*24.*3600.)
+
+#%% ALL MODELS
+
+# Data
+trans_folders = ['250429_linear', '250429_quadratic_ldc-priors', '250429_quadratic']
+trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs']
+lc = Utils.pickle_read( os.path.join(pr.WORK_DIR, trans_folders[0], 'spec', pr.LC_FILE) )
+
+lc_keys = list(lc.keys())
+ldcs = {'u1' : [], 'u1_err' : [], 'u2' : [], 'u2_err' : []}
+for ldc in ldcs.keys():
+    for lc_key in lc_keys:
+        ldcs[ldc] += [lc[lc_key][ldc]]
+
+# Models
+model_files = ['output_nominal']#, 'output_co_tweak', 'output_t_tweak']
+model_labels = ['SPARC/MITgcm', 'CO removed from morning', 'Temperature tweak']
+
+trans_spec = {}
+for i, trans_folder in enumerate(trans_folders):
+    trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
+    trans_spec[trans_labels[i]] = Utils.pickle_read( os.path.join(trans_dir, pr.TRANS_FILE ) )
+
+models = {}
+for i, model_file in enumerate(model_files):
+    f=h5py.File(os.path.join(pr.WORK_DIR, "aurelien/" + model_file + ".h5") )
+    time = f["Model/lightcurve/times"][...]
+    rprs = np.sqrt(f["Output/lightcurve/flux"][...])
+    wvls = 10000./f["Output/lightcurve/wns"][...]
+    
+    # Trim from T2 to T3
+    T23 = 2.25*3600.
+    time, rprs = Utils.trim_spectrum( time, rprs, -T23/2., T23/2. )
+    
+    models[model_labels[i]] = Utils.twoD_lc2coefficients( time, rprs, wvls )
+
+Plot.planet_rotation_nruns( trans_spec, models=models, opath = os.path.join(trans_dir, 'rotational_spectrum') )
+Plot.all_fit_parameters( trans_spec[trans_labels[2]], LDcoefficients=ldcs )
+
+
+# Data
+trans_folders = ['250429_linear']#, '250429_quadratic_ldc-priors', '250429_quadratic']
+trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs']
+model_files = ['output_nominal', 'output_co_tweak', 'output_t_tweak']
+model_labels = ['Nominal SPARC/MITgcm', 'CO modification', 'Temperature modification']
+
+trans_spec = {}
+for i, trans_folder in enumerate(trans_folders):
+    trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
+    trans_spec[trans_labels[i]] = Utils.pickle_read( os.path.join(trans_dir, pr.TRANS_FILE ) )
+
+models = {}
+for i, model_file in enumerate(model_files):
+    f=h5py.File(os.path.join(pr.WORK_DIR, "aurelien/" + model_file + ".h5") )
+    time = f["Model/lightcurve/times"][...]
+    rprs = np.sqrt(f["Output/lightcurve/flux"][...])
+    wvls = 10000./f["Output/lightcurve/wns"][...]
+    
+    # Trim from T2 to T3
+    T23 = 2.25*3600.
+    time, rprs = Utils.trim_spectrum( time, rprs, -T23/2., T23/2. )
+    
+    models[model_labels[i]] = Utils.twoD_lc2coefficients( time, rprs, wvls )
+
+Plot.planet_rotation_nruns( trans_spec, models=models, opath = os.path.join(trans_dir, 'gcm_tweaks') )
+
+# wavelengths = models[model_labels[0]]['wavelength']
+# for i in range(len(wavelengths) - 1):
+#     print((wavelengths[i+1]-wavelengths[i])/(wavelengths[i+1]+wavelengths[i]))
+
+#%% T2 AND T3 SPECTRA
+
+T23 = 2.25/24.
+print('Rotation during half a transit:', T23/2./pr.ORBITAL_PERIOD['median']*360.)
+
+# Data
+trans_dir = os.path.join( pr.WORK_DIR, '250429_linear', 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
+rot_trans_spec = Utils.pickle_read( os.path.join(trans_dir, pr.TRANS_FILE ) )
+variables = list(rot_trans_spec.keys())
+
+trans_spec = {}
+contact_points = ['Contact point 2', 'Contact point 3']
+signs = [-1., 1.]
+
+for i, point in enumerate(contact_points):
+    sign = signs[i]
+    trans_spec[point] = {}
+    for key in variables:
+        trans_spec[point][key] = rot_trans_spec[key]
+    trans_spec[point]['RpRs'] = {}
+    trans_spec[point]['RpRs']['value'] = rot_trans_spec['R0']['value'] + sign * T23/2.*rot_trans_spec['R1']['value']
+    trans_spec[point]['RpRs']['stderr'] = np.sqrt( rot_trans_spec['R0']['stderr']**2 + (T23/2.*rot_trans_spec['R1']['stderr'])**2 )
+
+Plot.Transmission_Spectrum_nruns_meansubtracted_npanels( trans_spec, transit_depth_unit=1.0E-6, limits=[-70.,1000.], opath=os.path.join(trans_dir, 'trans_spec') )
+
+# #%% COMPARISON TRANSLATIONAL & ROTATIONAL MODEL
+
+# px = '10'
+
+# # Set directories
+# rot_dir = os.path.join( pr.ASTRONODE_DIR, '250317' )
+# trans_dir = os.path.join( pr.WORK_DIR, '240805', px + '_pixel_columns', pr.TRANS_DIR, pr.MCMC_DIR )
+
+# # Input
+# rot_spec = Utils.pickle_read( os.path.join(rot_dir, px + 'px_lc-fit') )
+# trans_spec = Utils.pickle_read( os.path.join(trans_dir, px + 'px_lc-fit') )
+
+# rot_spec['RpRs'] = rot_spec['R0']
+
+# # Plot.planet_rotation( rot_spec, opath = os.path.join(rot_dir, 'rotational_spectrum') )
+# Plot.Transmission_Spectrum_2runs_errorbars_residuals( {'Translational model' : trans_spec, 'Rotational model' : rot_spec}, \
+#                                                       transit_depth_unit=1.0E-2, transit_depth_limits=[1.4, 1.65], uncertainty_unit=1.0E-6, \
+#                                                           uncertainty_limits=[50.,800.], residual_limits=[-100., 100.], opath = os.path.join(rot_dir, 'transmission_spectrum') )
 
 # #%% VARIATION WITHIN NRS2
 

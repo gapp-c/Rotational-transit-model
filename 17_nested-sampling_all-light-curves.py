@@ -34,7 +34,7 @@ fit_out_dir = os.path.join( pr.SPEC_DIR, 'all_' + pr.NESTED_DIR )
 
 ######## Input ########
 
-lc = Utils.pickle_read( os.path.join(pr.SPEC_DIR, pr.LC_FILE) )
+lc = Utils.pickle_read( os.path.join(pr.SPEC_DIR, pr.LC_EDITED_FILE) )
 channels = list( lc.keys() )
 nchan = len( channels )
 prelim_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.FIT_FILE) )

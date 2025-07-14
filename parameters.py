@@ -59,7 +59,7 @@ BASELINE_C2 = 0.0
 
 CUTOUT_HALFTIME = 3.501                   # Transit duration ~ 2.91 hours
 NUMBER_OF_PIXEL_COLUMNS = { 'NRS1' : 244, 'NRS2' : 237}
-SIGMA_CLIPPING = 5.
+SIGMA_CLIPPING = np.inf
 BASELINE_BROAD = 'linear'
 BASELINE_SPEC = 'linear'
 
@@ -73,8 +73,10 @@ KIPPING_LD_PARAMETERS = False
 FIT_1ST_LD_PARAMETER = True
 FIT_2ND_LD_PARAMETER = True
 LDC_PRIORS = False
-FIT_TMID_SPEC = True
+FIT_TMID_SPEC = True               # Fit for transit midtimes in the spectroscopic light curves?
+FIT_TMID_DETECTORS = False          # Fit for different transit midtimes between NRS1 and NRS2? NOT TESTED
 ADD_SYSTEMATIC_UNCERTAINTY = True
+CATWOMAN = False
 
 ########## TECHNICAL PARAMETERS ###########
 
@@ -98,7 +100,7 @@ else:
     EXOTIC_DATA_DIR = os.path.join( HOME_DIR, '.exotic-ld_data/' )
 
 SPECTRA1D_DIR = os.path.join( WORK_DIR, 'data_reduced/xarray_formatted/' )
-
+EUREKA_DIR = os.path.join( WORK_DIR, 'eureka' )
 MODEL_DIR = os.path.join( WORK_DIR, 'models_david/' )
 
 SPEC1D_NRS1 = 'spec1d_FIREFly_20230113_NRS1.nc'
@@ -137,10 +139,7 @@ CUSTOM_INPUT_DIR = os.path.join( WORK_DIR, 'custom_input/' )
 
 BROAD_DIR = os.path.join( RESULTS_DIR, 'white/' )
 SPEC_DIR = os.path.join( RESULTS_DIR, 'spec/' )
-# if USE_ASTRONODES:
-#     MOLECULES = ['h2o', 'h2o_2', 'sio', 'co']
-# else:
-MOLECULES = []#['h2o', 'co']
+MOLECULES = ['co']
 
 TRANS_DIR = 'transmission_spectrum/'
 PRELIM_DIR = 'leastsq/'
@@ -148,10 +147,8 @@ MCMC_DIR = 'mcmc/'
 NESTED_DIR = 'nested/'
 
 LD_FILE = 'limb-darkening-coefficients'
-LC_SPEC_FILE = 'speclcs_' + str(NUMBER_OF_PIXEL_COLUMNS)  + '-pixel-columns'
-LC_SPEC_FILE_EDITED = LC_SPEC_FILE + '_reformatted'
-LC_SPEC_FILE_SIGMA = LC_SPEC_FILE + '_sigma-clipped'
 LC_FILE = 'lc'
+LC_EDITED_FILE = LC_FILE + '_sigma-clipped'
 
 FIT_FILE = 'fit'
 CHAIN_FILE = 'chain'

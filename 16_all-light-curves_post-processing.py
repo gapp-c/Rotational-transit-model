@@ -37,7 +37,7 @@ trans_dir = os.path.join( pr.SPEC_DIR, pr.TRANS_DIR, 'all_' + pr.MCMC_DIR )
 
 ######## Input ########
 
-lc = Utils.pickle_read( os.path.join( pr.SPEC_DIR, pr.LC_FILE ) )
+lc = Utils.pickle_read( os.path.join( pr.SPEC_DIR, pr.LC_EDITED_FILE ) )
 channels = list( lc.keys() )
 nchan = len( channels )
 prelim_fit = Utils.pickle_read( os.path.join(prelim_dir, pr.FIT_FILE) )

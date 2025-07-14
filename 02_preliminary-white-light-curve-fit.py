@@ -50,10 +50,23 @@ for nrs in detectors:
 # GO
 p0 = initialParameters.Broad( broad_lc )
 
-print('--------- White light curve: Running preliminary fit ---------')
-prelim_fit = minimize( calc_residuals, p0, args=(broad_lc, batpar, batmodel) )
-prelim_fit.params.pretty_print()
+if np.isfinite(pr.SIGMA_CLIPPING):
+    print('--------- White light curve: Running preliminary fit ---------')
+    prelim_fit = minimize( calc_residuals, p0, args=(broad_lc, batpar, batmodel) )
+    broad_lc = Utils.sigma_clipping_white(broad_lc, prelim_fit.params, pr.SIGMA_CLIPPING)
+
+    # After the sigma clipping, we have to re-initiate the batman model to accomodate fewer data points.
+    for nrs in detectors:
+        batpar[nrs], batmodel[nrs] = calculateBatmanModel.create_Batman_arrays( broad_lc[nrs]['bjd_tdb'] )
+
+print('--------- White light curve: Running final fit ---------')
+if not(np.isfinite(pr.SIGMA_CLIPPING)):
+    broad_fit = minimize( calc_residuals, p0, args=(broad_lc, batpar, batmodel) )
+else:
+    broad_fit = minimize( calc_residuals, prelim_fit.params, args=(broad_lc, batpar, batmodel) )
+broad_fit.params.pretty_print()
 
 # Output
-Utils.pickle_save( fit_out_dir, pr.FIT_FILE, prelim_fit )
-Plot.white_light_curves( broad_lc, prelim_fit.params.valuesdict(), opath=os.path.join(fit_out_dir, 'rotational_model') )
+Utils.pickle_save( fit_out_dir, pr.FIT_FILE, broad_fit )
+Utils.pickle_save( pr.BROAD_DIR, pr.LC_EDITED_FILE, broad_lc )
+Plot.white_light_curves( broad_lc, broad_fit.params.valuesdict(), time_limits=[0.5, 0.78], opath=os.path.join(fit_out_dir, 'rotational_model') )

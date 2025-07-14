@@ -32,14 +32,8 @@ mcmc_dir = os.path.join( pr.BROAD_DIR, 'eureka', pr.MCMC_DIR )
 
 ######## Input ########
 
-detectors = ['NRS1', 'NRS2']
-broad_lc = {}
-for detector in detectors:
-    broad_lc[detector] = {}
-    broad_lc[detector]['t'], broad_lc[detector]['lcVals'], broad_lc[detector]['lcUncs'] = np.loadtxt( os.path.join(pr.WORK_DIR, 'eureka', 'WASP-121b_' + detector + '_WL.txt'), unpack=True )
-    broad_lc[detector]['bjd_tdb'] = broad_lc[detector]['t'] + pr.TIME_0 + pr.TRANSIT_MID_TIME
-    broad_lc[detector] = Utils.remove_nans( broad_lc[detector] )
-
+broad_lc = Utils.pickle_read( os.path.join(pr.BROAD_DIR, 'eureka', pr.LC_FILE) )
+detectors = list(broad_lc.keys())
 prelim_fit = Utils.pickle_read( os.path.join( fit_in_dir, pr.FIT_FILE) )
 mcmc_result = Utils.pickle_read( os.path.join( mcmc_dir, pr.CHAIN_FILE) )
 

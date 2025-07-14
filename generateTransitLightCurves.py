@@ -50,7 +50,7 @@ def white( spec1d ):
         wavEdgesMicr = [ wavMicr[DISPIXS[k][0]], wavMicr[DISPIXS[k][1]] ]
         outp[k] = { 'bjd_tdb':bjd, 'x_shift':x_shift, 'y_shift':y_shift, \
                     'lcVals':lcVals, 'lcUncs':lcUncs, 'wavEdgesMicr':wavEdgesMicr }
-            
+        
     # Cut out the transit for stand-alone analysis:
     # outp_transit = Utils.transit_cutout_white( outp )
     outp_transit = Utils.transit_and_eclipses_white( outp )
@@ -87,7 +87,8 @@ def single( spec1d, nrs, column_range ):
     print('Single LC wavelength range:', wavEdgesMicr)
     
     # Cut out the transit for stand-alone analysis:
-    outp_transit = Utils.transit_cutout_white( outp )
+    # outp_transit = Utils.transit_cutout_white( outp )
+    outp_transit = Utils.transit_and_eclipses_white( outp )
     
     # Normalize 
     outp_transit[nrs]['lcVals'], outp_transit[nrs]['lcUncs'] = Utils.normalize_lightcurve( outp_transit[nrs]['lcVals'], outp_transit[nrs]['lcUncs'] )

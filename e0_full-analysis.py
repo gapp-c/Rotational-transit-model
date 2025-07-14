@@ -15,8 +15,7 @@ with open('parameters.py', 'r') as f:
     print(f.read())
     f.close()
 
-
-files2run = ['e3', 'e4', 'e5', 'e6', 'e7', 'e8','11', '12', '13', '17']
+files2run = ['e1', 'e2', 'e3', 'e4']
 # files2run = ['e7', 'e8']
 
 for file2run in files2run:

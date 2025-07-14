@@ -335,7 +335,7 @@ def broad_light_curve_corrections( z, fp, fs, ofile ):
     
     plt.close()
 
-def white_light_curves( data, best_params, residual_limits=[-600., 600.], opath = '', emcee_result = None ):
+def white_light_curves( data, best_params, time_limits='None', residual_limits=[-600., 600.], opath = '', emcee_result = None ):
     """
     Plots light curves for both the NRS1 and the NRS2 detectors. Adds panels with the residuals.
     """
@@ -374,7 +374,7 @@ def white_light_curves( data, best_params, residual_limits=[-600., 600.], opath 
     T4 = {}
     
     for nrs in detectors:
-        if pr.FIT_TMID_SPEC:
+        if pr.FIT_TMID_SPEC or pr.FIT_TMID_DETECTORS:
             T1[nrs] = best_params['Tmid_' + nrs] - T14[nrs]/2.
             T2[nrs] = best_params['Tmid_' + nrs] - T23[nrs]/2.
             T3[nrs] = best_params['Tmid_' + nrs] + T23[nrs]/2.
@@ -450,7 +450,10 @@ def white_light_curves( data, best_params, residual_limits=[-600., 600.], opath 
         residuals = (data[nrs]['lcVals'] - best_model[nrs])/data[nrs]['lcVals'] * unit#/data[nrs]['lcUncs']
         
         # Perform binning
-        bin_edges = np.linspace( min(data[nrs]['bjd_tdb']), max(data[nrs]['bjd_tdb']), 100 )
+        if time_limits == 'None':
+            bin_edges = np.linspace( min(data[nrs]['bjd_tdb']), max(data[nrs]['bjd_tdb']), 100 )
+        else:
+            bin_edges = np.linspace( min(data[nrs]['bjd_tdb']), max(data[nrs]['bjd_tdb']), 200 )
         residuals_binned, applied_bin_edges, indices = binned_statistic( data[nrs]['bjd_tdb'], residuals, bins=bin_edges )
         bin_middles = Utils.bin_edges_into_middles( bin_edges )
         
@@ -468,7 +471,10 @@ def white_light_curves( data, best_params, residual_limits=[-600., 600.], opath 
     ax[0,0].set_ylabel('Relative Flux')
     ax[0,0].legend( loc='lower left' )
     ax[1,0].set_ylabel('Relative residuals [ppm]')
-    ax[0,0].set_xlim( min(bin_middles) - pr.TIME_0, max(bin_middles) - pr.TIME_0)
+    try:
+        ax[0,0].set_xlim( time_limits )
+    except ValueError:
+        ax[0,0].set_xlim( min(bin_middles) - pr.TIME_0, max(bin_middles) - pr.TIME_0)
     ax[1,0].set_ylim( residual_limits )
     fig.tight_layout()
     
@@ -840,6 +846,156 @@ def broad_phasecurve_only( z, best_params, ofile = '', emcee_result = None ):
     
     plt.close()
 
+
+def n_lightcurves_m_models_zoom( data, best_params, emcee_result = None, lc_limits=[0.983, 1.0005], zoom_limits=[0.9837, 0.985], residual_limits=[-500., 500.], scale_errorbars = False, opath = '' ):
+    """
+    Plots light curves for both the NRS1 and the NRS2 detectors. Adds panels with the residuals.
+    """
+    
+    point_size = 5.
+    errorbar_size = 0.4
+    model_colors = ['blue', 'darkorange']
+    mcmc_colors = ['aqua', 'yellow']
+    shade_alpha = 0.2
+    shade_color = 'gray'
+    line_width = 1.
+    model_labels = {'translational' : '$\mathcal{M}_{tra}$', 'linear' : '$\mathcal{M}_{rot}$', 'quadratic' : '$\mathcal{M}_{rot}$'}
+    reductions = list(data.keys())
+    
+    # Calculate contact points
+    T1 = {}
+    T2 = {}
+    T3 = {}
+    T4 = {}
+    for reduction in reductions:
+        models = list(best_params[reduction].keys())
+        in_egress_model = models[0]
+        
+        if pr.IMPACT_PARAMETER:
+            inc = Utils.impact_parameter2inc( best_params[reduction][in_egress_model]['b'], best_params[reduction][in_egress_model]['aRs'])
+        else:
+            inc = best_params[reduction][in_egress_model]['inc']
+        
+        # Using the equations from Winn et al. (2010)
+        T14 = Utils.T14_Winn(pr.ORBITAL_PERIOD['median'], best_params[reduction][in_egress_model]['aRs'], best_params[reduction][in_egress_model]['R0'], inc)
+        T23 = Utils.T23_Winn(pr.ORBITAL_PERIOD['median'], best_params[reduction][in_egress_model]['aRs'], best_params[reduction][in_egress_model]['R0'], inc)
+        
+        T1[reduction] = best_params[reduction][in_egress_model]['Tmid'] - T14/2.
+        T2[reduction] = best_params[reduction][in_egress_model]['Tmid'] - T23/2.
+        T3[reduction] = best_params[reduction][in_egress_model]['Tmid'] + T23/2.
+        T4[reduction] = best_params[reduction][in_egress_model]['Tmid'] + T14/2.
+    
+    T1['JWST/NIRISS'] += 2460244. - pr.TIME_0
+    T2['JWST/NIRISS'] += 2460244. - pr.TIME_0
+    T3['JWST/NIRISS'] += 2460244. - pr.TIME_0
+    T4['JWST/NIRISS'] += 2460244. - pr.TIME_0
+    
+    # Plot the best-fit light curve model against the data for both detectors:
+    plt.clf()
+    plt.rcParams.update({'text.usetex' : True, 'font.family' : 'sans-serif'})
+    
+    # Plot the best-fit light curve model against the data for both detectors:
+    fig, ax = plt.subplots( 4, len(reductions), sharex='col', figsize=[7.5,8.7] )
+    
+    # Data
+    for j, reduction in enumerate(reductions):
+        models = list(best_params[reduction].keys())
+        rescale_model = models[1]
+        
+        if scale_errorbars:
+            errorbars = np.sqrt( data[reduction]['lcUncs']**2 + (best_params[reduction][rescale_model]['sigma_sys']*1.0E-6)**2 )
+        else:
+            errorbars = data[reduction]['lcUncs']
+        
+        for k in range(2):
+            ax[k,j].scatter( data[reduction]['bjd_tdb'] - pr.TIME_0, data[reduction]['lcVals'], c='white', edgecolor='black', s=point_size, label='Data', zorder=2.0E03 )
+            ax[k,j].errorbar( data[reduction]['bjd_tdb'] - pr.TIME_0, data[reduction]['lcVals'], yerr=errorbars, ecolor='black', elinewidth=errorbar_size, ls='none', zorder=1.0E03 )
+            ax[k,j].axvspan(T1[reduction], T2[reduction], alpha=shade_alpha, color=shade_color)
+            ax[k,j].axvspan(T3[reduction], T4[reduction], alpha=shade_alpha, color=shade_color)
+            ax[k,j].yaxis.set_minor_locator(AutoMinorLocator())
+        ax[-1,j].set_xlabel( 'Time [BJD$_{TDB}$' + ' - {:.0f}]'.format(pr.TIME_0) )
+        
+        # Models
+        for i, model in enumerate(models):
+            
+            # First, initialize a batman model for every data point to change the transit radius as a function of time
+            batpar, batmodel = calculateBatmanModel.create_Batman_arrays( data[reduction]['bjd_tdb'] )
+            if reduction == 'JWST/NIRISS':
+                best_model = calculateBatmanModel.Single_soss( best_params[reduction][model], data[reduction], batpar, batmodel )
+            else:
+                best_model = calculateBatmanModel.Single( best_params[reduction][model], data[reduction], batpar, batmodel )
+            
+            # Plot random draws from the fit params
+            try:
+                random_indices = np.random.randint( len( emcee_result[reduction][model]['flat_chain'] ), size=100)
+                for index in random_indices:
+                    parameters = emcee_result[reduction][model]['flat_chain'][index]
+                    pars_dict = Utils.arrays2dict( parameters, emcee_result[reduction][model]['parameters'] )
+                    pars_dict = Utils.merge_dictionaries(pars_dict, best_params[reduction][model])
+                    if reduction == 'JWST/NIRISS':
+                        random_model = calculateBatmanModel.Single_soss( pars_dict, data[reduction], batpar, batmodel )
+                    else:
+                        random_model = calculateBatmanModel.Single( pars_dict, data[reduction], batpar, batmodel )
+                    for k in range(2):
+                        ax[k,j].plot( data[reduction]['bjd_tdb'] - pr.TIME_0, random_model, mcmc_colors[i], linewidth=line_width, alpha=0.1, zorder=1.0E04)
+            except TypeError:
+                pass
+            
+            for k in range(2):
+                ax[k,j].plot( data[reduction]['bjd_tdb'] - pr.TIME_0, best_model, model_colors[i], linewidth=line_width, label=model_labels[model], zorder=2.0E04 )
+            try:
+                ax[0,j].set_title( reduction + ', {0:.2f} - {1:.2f}$\,\mu$m'.format(data[reduction]['wavEdgesMicr'][0], data[reduction]['wavEdgesMicr'][1]) )
+            except KeyError:
+                ax[0,j].set_title( None )
+            
+            # Residuals
+            unit = 1.0E06       # ppm
+            residuals = (data[reduction]['lcVals'] - best_model)/data[reduction]['lcVals'] * unit
+            
+            # Perform binning
+            bin_edges = np.linspace( min(data[reduction]['bjd_tdb']), max(data[reduction]['bjd_tdb']), 400 )
+            residuals_binned, applied_bin_edges, indices = binned_statistic( data[reduction]['bjd_tdb'], residuals, bins=bin_edges )
+            bin_middles = Utils.bin_edges_into_middles( bin_edges )
+            
+            ax[i+2,j].scatter( data[reduction]['bjd_tdb'] - pr.TIME_0, residuals, c='white', edgecolor=model_colors[i], s=point_size, zorder=2.0E03, label='Unbinned' )
+            ax[i+2,j].errorbar( data[reduction]['bjd_tdb'] - pr.TIME_0, residuals, yerr=errorbars/data[reduction]['lcVals']*unit, ecolor=model_colors[i], elinewidth=errorbar_size, ls='none', zorder=1.0E03 )
+            ax[i+2,j].plot( bin_middles - pr.TIME_0, residuals_binned, linewidth=line_width, color=mcmc_colors[i], zorder=1.0E04, label='Binned' )
+            ax[i+2,j].axvspan(T1[reduction], T2[reduction], alpha=shade_alpha, color=shade_color)
+            ax[i+2,j].axvspan(T3[reduction], T4[reduction], alpha=shade_alpha, color=shade_color)
+            ax[i+2,j].yaxis.set_minor_locator(AutoMinorLocator())
+            
+            ax[i+2,1].legend( fontsize='small' )
+            ax[i+2,0].set_ylabel(model_labels[model] + ' residuals [ppm]')
+            ax[i+2,0].set_ylim( residual_limits )
+    
+    # Cosmetics
+    for k in range(2):
+        ax[k,0].set_ylabel('Normalized Flux')
+    ax[0,0].xaxis.set_minor_locator(AutoMinorLocator())
+    ax[0,1].legend( )
+    
+    ax[0,0].set_xlim( 377.945, 378.1 )
+    ax[0,1].set_xlim( 0.5546, 0.7306)
+    ax[1,0].set_ylim( 0.9835, 0.986 )
+    ax[1,1].set_ylim( 0.9845, 0.986 )
+    
+    residual_limits = [-700., 700.]
+    ax[2,0].set_ylim( residual_limits )
+    ax[3,0].set_ylim( residual_limits )
+    ax[2,1].set_ylim( residual_limits )
+    ax[3,1].set_ylim( residual_limits )
+    
+    fig.tight_layout()
+    
+    if pr.SAVE_PLOTS and len(opath) > 0:
+        fig.savefig( opath + '.pdf', dpi=400, bbox_inches='tight' )
+        print( '\nSaved:',opath + '.pdf' )
+    if pr.SHOW_PLOTS:
+        plt.show()
+    
+    plt.close()
+
+
 def spectral_light_curve( data, model, unit = 1.0E-2, opath = '', model_color='magenta' ):
     """
     Plots light curve data together with a model. The plot also shows the detector that
@@ -922,7 +1078,7 @@ def spectral_light_curve_nmodels( data, models, unit=1.0E-2, opath = '', emcee_r
         ax[0,j].legend(fontsize='small')
         
         residuals = (data['lcVals']-models[key])/data['lcVals'] / unit
-        bin_edges = np.linspace( min(data['bjd_tdb']), max(data['bjd_tdb']), 100 )
+        bin_edges = np.linspace( min(data['bjd_tdb']), max(data['bjd_tdb']), 500 )
         residuals_binned, applied_bin_edges, indices = binned_statistic( data['bjd_tdb'], residuals, bins=bin_edges )
         bin_middles = Utils.bin_edges_into_middles( bin_edges )
         ax[1,j].scatter ( data['bjd_tdb'] - pr.TIME_0, residuals, edgecolor='black', c='white', s=point_size, zorder=2, label='Unbinned' )
@@ -1434,7 +1590,7 @@ def white_lightcurves_n_models( data, best_params, lc_limits=[0.983, 1.0005], re
     
     plt.close()
 
-def white_lightcurves_n_models_zoom( data, best_params, emcee_result = None, lc_limits=[0.983, 1.0005], zoom_limits=[0.9837, 0.985], residual_limits=[-500., 500.], opath = '' ):
+def white_lightcurves_n_models_zoom( data, best_params, emcee_result = None, lc_limits=[0.983, 1.0005], zoom_limits=[0.9837, 0.985], residual_limits=[-500., 500.], scale_errorbars=False, opath = '' ):
     """
     Plots light curves for both the NRS1 and the NRS2 detectors. Adds panels with the residuals.
     """
@@ -1452,6 +1608,7 @@ def white_lightcurves_n_models_zoom( data, best_params, emcee_result = None, lc_
     
     # Calculate times of transit ingress and egress
     in_egress_model = models[0]
+    rescale_model = models[1]
     if pr.IMPACT_PARAMETER:
         inc = Utils.impact_parameter2inc( best_params[in_egress_model]['b'], best_params[in_egress_model]['aRs'])
     else:
@@ -1495,9 +1652,14 @@ def white_lightcurves_n_models_zoom( data, best_params, emcee_result = None, lc_
     
     # Data
     for j, nrs in enumerate(detectors):
+        if scale_errorbars:
+            errorbars = np.sqrt( data[nrs]['lcUncs']**2 + (best_params[rescale_model]['sigma_sys_' + nrs]*1.0E-6)**2 )
+        else:
+            errorbars = data[nrs]['lcUncs']
+            
         for k in range(2):
             ax[k,j].scatter( data[nrs]['bjd_tdb'] - pr.TIME_0, data[nrs]['lcVals'], c='white', edgecolor='black', s=point_size, label='Data', zorder=2.0E03 )
-            ax[k,j].errorbar( data[nrs]['bjd_tdb'] - pr.TIME_0, data[nrs]['lcVals'], yerr=data[nrs]['lcUncs'], ecolor='black', elinewidth=errorbar_size, ls='none', zorder=1.0E03 )
+            ax[k,j].errorbar( data[nrs]['bjd_tdb'] - pr.TIME_0, data[nrs]['lcVals'], yerr=errorbars, ecolor='black', elinewidth=errorbar_size, ls='none', zorder=1.0E03 )
             ax[k,j].axvspan(T1[nrs], T2[nrs], alpha=shade_alpha, color=shade_color)
             ax[k,j].axvspan(T3[nrs], T4[nrs], alpha=shade_alpha, color=shade_color)
             ax[k,j].yaxis.set_minor_locator(AutoMinorLocator())
@@ -1534,11 +1696,16 @@ def white_lightcurves_n_models_zoom( data, best_params, emcee_result = None, lc_
             try:
                 ax[0,j].set_title( nrs + ', {:.2f} - {:.2f} microns'.format(data[nrs]['wavEdgesMicr'][0], data[nrs]['wavEdgesMicr'][1]) )
             except KeyError:
-                ax[0,j].set_title( nrs )
-    
+                ax[0,j].set_title( nrs + ', Eureka! reduction' )
+            
         # Residuals
         unit = 1.0E06       # ppm
         for j, nrs in enumerate(detectors):
+            if scale_errorbars:
+                errorbars = np.sqrt( data[nrs]['lcUncs']**2 + (best_params[rescale_model]['sigma_sys_' + nrs]*1.0E-6)**2 )
+            else:
+                errorbars = data[nrs]['lcUncs']
+            
             residuals = (data[nrs]['lcVals'] - best_model[nrs])/data[nrs]['lcVals'] * unit#/data[nrs]['lcUncs']
             
             # Perform binning
@@ -1547,7 +1714,7 @@ def white_lightcurves_n_models_zoom( data, best_params, emcee_result = None, lc_
             bin_middles = Utils.bin_edges_into_middles( bin_edges )
             
             ax[i+2,j].scatter( data[nrs]['bjd_tdb'] - pr.TIME_0, residuals, c='white', edgecolor=model_colors[i], s=point_size, zorder=2.0E03, label='Unbinned' )
-            ax[i+2,j].errorbar( data[nrs]['bjd_tdb'] - pr.TIME_0, residuals, yerr=data[nrs]['lcUncs']/data[nrs]['lcVals']*unit, ecolor=model_colors[i], elinewidth=errorbar_size, ls='none', zorder=1.0E03 )
+            ax[i+2,j].errorbar( data[nrs]['bjd_tdb'] - pr.TIME_0, residuals, yerr=errorbars/data[nrs]['lcVals']*unit, ecolor=model_colors[i], elinewidth=errorbar_size, ls='none', zorder=1.0E03 )
             ax[i+2,j].plot( bin_middles - pr.TIME_0, residuals_binned, linewidth=line_width, color=mcmc_colors[i], zorder=1.0E04, label='Binned' )
             ax[i+2,j].axvspan(T1[nrs], T2[nrs], alpha=shade_alpha, color=shade_color)
             ax[i+2,j].axvspan(T3[nrs], T4[nrs], alpha=shade_alpha, color=shade_color)
@@ -2006,13 +2173,13 @@ def Transmission_Spectrum_chi( tr_spec, filepath ):
         plt.show()
     plt.close()
     
-def all_fit_parameters( tr_spec, x_limits=[2.7,5.2], fig_size=[9,10.3], outliers=None, opath='', LDcoefficients = None, white_fit = None, white_chisquare=None ):
+def all_fit_parameters( tr_spec, parameters=[], x_limits=[2.7,5.2], fig_size=[9,10.3], outliers=None, opath='', LDcoefficients = None, white_fit = None, white_chisquare=None ):
     
     data_color = 'black'
     point_size = 5.
     errorbar_size = 0.5
     alpha_errorbars = 1.0
-    alpha_shading = 0.2
+    alpha_shading = 1
     parameters = list(tr_spec.keys())
     prior_color = 'red'
     white_color = 'blue'
@@ -2020,44 +2187,35 @@ def all_fit_parameters( tr_spec, x_limits=[2.7,5.2], fig_size=[9,10.3], outliers
     n_lines = 5     #3
     n_columns = 2   #2
     
-    detector_jump = 146
-    lower_wavelengths = { 'NRS1' : tr_spec['wavelength'][0], 'NRS2' : tr_spec['wavelength'][detector_jump]}
-    upper_wavelengths = { 'NRS1' : tr_spec['wavelength'][detector_jump-1], 'NRS2' : tr_spec['wavelength'][-1] }
-    
     # Prepare transit mid-time calculation
     try:
         i1 = np.where( white_fit['Parameter'] == 'Tmid_NRS1' )[0][0]
         i2 = np.where( white_fit['Parameter'] == 'Tmid_NRS2' )[0][0]
         T_mean = (np.float(white_fit['Median'][i1]) + np.float(white_fit['Median'][i2])) / 2.
     except TypeError:
-        T_mean = 0.
+        T_mean = np.median(tr_spec['Tmid']['value'])
     
     # Clear plot memory and plot the Transmission spectrum
     plt.clf()
     plt.rcParams.update({'text.usetex' : True, 'font.family' : 'sans-serif'})
     # print(parameters)
-    # fig, ax = plt.subplots( (len(parameters) - 2), 1, figsize=fig_size, sharex=True )
-    fig, ax = plt.subplots( n_lines, n_columns, figsize=fig_size, sharex=True )
+    fig, ax = plt.subplots( len(parameters)//2, 2, figsize=fig_size, sharex=True )
+    # fig, ax = plt.subplots( n_lines, n_columns, figsize=fig_size, sharex=True )
     
     i = 0
-    # parameters = list(tr_spec.keys())
-    parameters = ['RpRs', 'Tmid', 'u1', 'u2', 'c0', 'c1', 'c2', 'sigma_sys']
+    if len(parameters) == 0:
+        parameters = list(tr_spec.keys())
+        
     for var in parameters:
         i_plot = int(i/n_columns)
         j_plot = i%n_columns
         if ( not( var in ['wavelength', 'wavelength_halfwidth', 'chisquare', 'bic'] ) ):
-            # Plot theoretical values for LD parameters
+            # Plot theoretical values for LDCs
             if (var in ['u1', 'u2']):
                 try:
-                    # ax[i].plot( tr_spec['wavelength']['value'][:detector_jump], LDcoefficients[var][:detector_jump], color=prior_color, zorder=2. )
-                    # ax[i].plot( tr_spec['wavelength']['value'][detector_jump:], LDcoefficients[var][detector_jump:], color=prior_color, zorder=2. )
-                    # ax[i].fill_between( tr_spec['wavelength']['value'][:detector_jump], LDcoefficients[var][:detector_jump] - LDcoefficients[var + '_err'][:detector_jump], LDcoefficients[var][:detector_jump] + LDcoefficients[var + '_err'][:detector_jump], color=prior_color, alpha=alpha_shading )
-                    # ax[i].fill_between( tr_spec['wavelength']['value'][detector_jump:], LDcoefficients[var][detector_jump:] - LDcoefficients[var + '_err'][detector_jump:], LDcoefficients[var][detector_jump:] + LDcoefficients[var + '_err'][detector_jump:], color=prior_color, alpha=alpha_shading )
-                    ax[i_plot,j_plot].plot( tr_spec['wavelength'][:detector_jump], LDcoefficients[var][:detector_jump], color=prior_color, zorder=2. )
-                    ax[i_plot,j_plot].plot( tr_spec['wavelength'][detector_jump:], LDcoefficients[var][detector_jump:], color=prior_color, zorder=2. )
-                    ax[i_plot,j_plot].fill_between( tr_spec['wavelength'][:detector_jump], LDcoefficients[var][:detector_jump] - LDcoefficients[var + '_err'][:detector_jump], LDcoefficients[var][:detector_jump] + LDcoefficients[var + '_err'][:detector_jump], color=prior_color, alpha=alpha_shading )
-                    ax[i_plot,j_plot].fill_between( tr_spec['wavelength'][detector_jump:], LDcoefficients[var][detector_jump:] - LDcoefficients[var + '_err'][detector_jump:], LDcoefficients[var][detector_jump:] + LDcoefficients[var + '_err'][detector_jump:], color=prior_color, alpha=alpha_shading )
-                except TypeError:
+                    ax[i_plot,j_plot].plot( tr_spec['wavelength'], LDcoefficients[var], color=prior_color, zorder=2. )
+                    ax[i_plot,j_plot].fill_between( tr_spec['wavelength'], LDcoefficients[var] - LDcoefficients[var + '_err'], LDcoefficients[var] + LDcoefficients[var + '_err'], color=prior_color, alpha=alpha_shading )
+                except Exception:
                     pass
             
             # Posteriors
@@ -2066,9 +2224,7 @@ def all_fit_parameters( tr_spec, x_limits=[2.7,5.2], fig_size=[9,10.3], outliers
                 asymmetric_error = np.array(list(zip(tr_spec[var]['lowerr'], tr_spec[var]['upperr']))).T
                 # ax[i].errorbar( tr_spec['wavelength'], tr_spec[var]['value'], yerr=asymmetric_error, elinewidth=errorbar_size, ecolor='blue', alpha=alpha_errorbars, ls='none')
                 # ax[i].errorbar( tr_spec['wavelength']['value'], tr_spec[var]['value'], yerr=asymmetric_error, elinewidth=errorbar_size, ecolor=data_color, alpha=alpha_errorbars, ls='none', zorder=3.)
-                if var == 'sigma_sys':
-                    ax[i_plot,j_plot].errorbar( tr_spec['wavelength'], tr_spec[var]['value']*1.0E6, yerr=asymmetric_error*1.0E6, elinewidth=errorbar_size, ecolor=data_color, alpha=alpha_errorbars, ls='none', zorder=3.)
-                elif var == 'Tmid':
+                if var == 'Tmid':
                     ax[i_plot,j_plot].errorbar( tr_spec['wavelength'], (tr_spec[var]['value'] - T_mean) * 24. * 3600., yerr=asymmetric_error * 24. * 3600., elinewidth=errorbar_size, ecolor=data_color, alpha=alpha_errorbars, ls='none', zorder=3.)
                 else:
                     ax[i_plot,j_plot].errorbar( tr_spec['wavelength'], tr_spec[var]['value'], yerr=asymmetric_error, elinewidth=errorbar_size, ecolor=data_color, alpha=alpha_errorbars, ls='none', zorder=3.)
@@ -2079,9 +2235,7 @@ def all_fit_parameters( tr_spec, x_limits=[2.7,5.2], fig_size=[9,10.3], outliers
                 try:
                     # ax[i].errorbar( tr_spec['wavelength'], tr_spec[var]['value'], yerr=tr_spec[var]['stderr'], elinewidth=errorbar_size, alpha=alpha_errorbars, ecolor='blue', ls='none')
                     # ax[i].errorbar( tr_spec['wavelength']['value'], tr_spec[var]['value'], yerr=tr_spec[var]['stderr'], elinewidth=errorbar_size, alpha=alpha_errorbars, ecolor=data_color, ls='none', zorder=3.)
-                    if var == 'sigma_sys':
-                        ax[i_plot,j_plot].errorbar( tr_spec['wavelength'], tr_spec[var]['value']*1.0E6, yerr=tr_spec[var]['stderr']*1.0E6, elinewidth=errorbar_size, alpha=alpha_errorbars, ecolor=data_color, ls='none', zorder=3.)
-                    elif var == 'Tmid':
+                    if var == 'Tmid':
                         ax[i_plot,j_plot].errorbar( tr_spec['wavelength'], (tr_spec[var]['value'] - T_mean) * 24. * 3600., yerr=tr_spec[var]['stderr'] * 24. * 3600., elinewidth=errorbar_size, alpha=alpha_errorbars, ecolor=data_color, ls='none', zorder=3.)
                     else:
                         ax[i_plot,j_plot].errorbar( tr_spec['wavelength'], tr_spec[var]['value'], yerr=tr_spec[var]['stderr'], elinewidth=errorbar_size, alpha=alpha_errorbars, ecolor=data_color, ls='none', zorder=3.)
@@ -2100,9 +2254,7 @@ def all_fit_parameters( tr_spec, x_limits=[2.7,5.2], fig_size=[9,10.3], outliers
                     # ax[i].set_ylabel( Utils.pretty_labels(var) )
                     ax[i_plot,j_plot].set_ylabel( Utils.pretty_labels(var) )
             
-            if var == 'sigma_sys':
-                ax[i_plot,j_plot].scatter( tr_spec['wavelength'], tr_spec[var]['value']*1.0E6, c='white', edgecolor=data_color, s=point_size, zorder=4., label='Posterior medians' )
-            elif var == 'Tmid':
+            if var == 'Tmid':
                 ax[i_plot,j_plot].scatter( tr_spec['wavelength'], (tr_spec[var]['value'] - T_mean) * 24. * 3600., c='white', edgecolor=data_color, s=point_size, zorder=4., label='Posterior medians' )
             else:
                 ax[i_plot,j_plot].scatter( tr_spec['wavelength'], tr_spec[var]['value'], c='white', edgecolor=data_color, s=point_size, zorder=4., label='Posterior medians' )
@@ -2136,9 +2288,15 @@ def all_fit_parameters( tr_spec, x_limits=[2.7,5.2], fig_size=[9,10.3], outliers
             ax[i_plot,j_plot].yaxis.set_minor_locator(AutoMinorLocator())
             i += 1
     
-    ax[-1,0].scatter( tr_spec['wavelength'], tr_spec['chisquare'], c='white', edgecolor=data_color, s=point_size, zorder=4., label='Posterior medians' )
+    i_plot = int(i/n_columns)
+    j_plot = i%n_columns
+    try:
+        ax[i_plot,j_plot].scatter( tr_spec['wavelength'], tr_spec['chisquare'], c='white', edgecolor=data_color, s=point_size, zorder=4., label='Posterior medians' )
+        ax[-1,0].set_ylabel( '$\chi_\\nu^2$' )
+    except Exception:
+        pass
     # ax[-1,0].plot( [lower_wavelengths[nrs], upper_wavelengths[nrs]], [white_chisquare, white_chisquare], '--', color=white_color, zorder=3. )
-    ax[-1,0].set_ylabel( '$\chi_\\nu^2$' )
+    
     try:
         ax[-1,-1].bar( tr_spec['wavelength'], outliers, width = tr_spec['wavelength_halfwidth'], color='white', edgecolor=data_color )
         ax[-1,-1].yaxis.set_major_locator(MultipleLocator(1))
@@ -2146,7 +2304,7 @@ def all_fit_parameters( tr_spec, x_limits=[2.7,5.2], fig_size=[9,10.3], outliers
     except TypeError:
         pass
     
-    ax[-2,-1].plot( [lower_wavelengths['NRS1'], lower_wavelengths['NRS1']], [tr_spec[var]['value'][0], tr_spec[var]['value'][0]], color=prior_color, zorder=1., label='Prior medians' )
+    # ax[-2,-1].plot( [lower_wavelengths['NRS1'], lower_wavelengths['NRS1']], [tr_spec[var]['value'][0], tr_spec[var]['value'][0]], color=prior_color, zorder=1., label='Prior medians' )
     ax[-2,-1].legend()
     
     ax[0,0].set_xlim(x_limits)
@@ -2240,6 +2398,121 @@ def Transmission_Spectrum_nruns( tr_spec, transit_depth_unit=1., limits=None, ti
         plt.show()
     plt.close()
 
+def Transmission_Spectrum_nruns_meansubtracted( tr_spec, transit_depth_unit=1., limits=None, title=None, opath='' ):
+    
+    point_size = 8.
+    alpha = 0.8
+    colors = ['blue', 'red', 'black']
+    markers = ['d', 'o', 's']
+    
+    # Clear plot memory and plot the Transmission spectrum
+    plt.clf()
+    plt.rcParams.update({'text.usetex' : True, 'font.family' : 'sans-serif'})
+    
+    keys = list(tr_spec.keys())
+    
+    for i, run in enumerate(keys):
+        if 'transit_depth' in list(tr_spec[run].keys()):
+            if 'upperr' in list(tr_spec[run]['transit_depth'].keys()):
+                # Check, if the transmission spectrum has asymmetric errorbars stored
+                asymmetric_error = np.array(list(zip(tr_spec[run]['transit_depth']['lowerr'], tr_spec[run]['transit_depth']['upperr']))).T
+                plt.errorbar( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            else:
+                # If not, just use symmetric errorbars
+                plt.errorbar( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, yerr=tr_spec[run]['transit_depth']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            plt.scatter( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, c='white', edgecolor=colors[i], marker=markers[i], s=point_size, alpha=alpha, label=run, zorder=2 )
+        else:
+            mean = np.mean( tr_spec[run]['RpRs']['value'][:7]**2 )
+            if 'upperr' in list(tr_spec[run]['RpRs'].keys()):
+                # Check, if the transmission spectrum has asymmetric errorbars stored
+                percentile16 = tr_spec[run]['RpRs']['value'] - tr_spec[run]['RpRs']['lowerr']
+                percentile84 = tr_spec[run]['RpRs']['value'] + tr_spec[run]['RpRs']['upperr']
+                upper_error = percentile84**2 - tr_spec[run]['RpRs']['value']**2
+                lower_error = tr_spec[run]['RpRs']['value']**2 -percentile16**2
+                asymmetric_error = np.array(list(zip(lower_error, upper_error))).T
+                plt.errorbar( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            else:
+                # If not, just use symmetric errorbars
+                plt.errorbar( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, xerr=tr_spec[run]['wavelength_halfwidth'], yerr=2.*tr_spec[run]['RpRs']['value']*tr_spec[run]['RpRs']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            plt.scatter( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, c='white', edgecolor=colors[i], marker=markers[i], s=point_size, alpha=alpha, label=run, zorder=2 )
+        
+    if transit_depth_unit == 1.0E-6:
+        plt.ylabel( 'Transit depth - offset [ppm]' )
+    elif transit_depth_unit == 1.0E-2:
+        plt.ylabel( 'Transit depth - offset [\%]' )
+    else:
+        plt.ylabel( 'Transit depth - offset' )
+    plt.xlim( [2.7,5.1] )
+    plt.ylim( limits )
+    plt.xlabel( 'Wavelength [micron]' )
+    plt.title( title )
+    plt.legend()
+    if ( len(opath) > 0):
+        pylab.savefig( opath + '.pdf', bbox_inches='tight' )
+    else:
+        plt.show()
+    plt.close()
+
+def Transmission_Spectrum_nruns_meansubtracted_npanels( tr_spec, transit_depth_unit=1., limits=None, title=None, opath='' ):
+    
+    keys = list(tr_spec.keys())
+    point_size = 8.
+    alpha = 0.8
+    colors = ['black', 'black', 'black']
+    markers = ['o', 'o', 'o']
+    
+    # Clear plot memory and plot the Transmission spectrum
+    plt.clf()
+    fig, ax = plt.subplots( 1, len(keys), figsize=[5,2], sharex=True, sharey=True )
+    plt.rcParams.update({'text.usetex' : True, 'font.family' : 'sans-serif'})
+    
+    for i, run in enumerate(keys):
+        if 'transit_depth' in list(tr_spec[run].keys()):
+            if 'upperr' in list(tr_spec[run]['transit_depth'].keys()):
+                # Check, if the transmission spectrum has asymmetric errorbars stored
+                asymmetric_error = np.array(list(zip(tr_spec[run]['transit_depth']['lowerr'], tr_spec[run]['transit_depth']['upperr']))).T
+                ax[i].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            else:
+                # If not, just use symmetric errorbars
+                ax[i].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, yerr=tr_spec[run]['transit_depth']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            ax[i].scatter( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, c='white', edgecolor=colors[i], marker=markers[i], s=point_size, alpha=alpha, label=run, zorder=2 )
+        else:
+            # mean = np.mean( tr_spec[run]['RpRs']['value'][:7]**2 )
+            mean = tr_spec[run]['RpRs']['value'][6]**2
+            if 'upperr' in list(tr_spec[run]['RpRs'].keys()):
+                # Check, if the transmission spectrum has asymmetric errorbars stored
+                percentile16 = tr_spec[run]['RpRs']['value'] - tr_spec[run]['RpRs']['lowerr']
+                percentile84 = tr_spec[run]['RpRs']['value'] + tr_spec[run]['RpRs']['upperr']
+                upper_error = percentile84**2 - tr_spec[run]['RpRs']['value']**2
+                lower_error = tr_spec[run]['RpRs']['value']**2 -percentile16**2
+                asymmetric_error = np.array(list(zip(lower_error, upper_error))).T
+                ax[i].errorbar( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            else:
+                # If not, just use symmetric errorbars
+                ax[i].errorbar( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, xerr=tr_spec[run]['wavelength_halfwidth'], yerr=2.*tr_spec[run]['RpRs']['value']*tr_spec[run]['RpRs']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            ax[i].scatter( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, c='white', edgecolor=colors[i], marker=markers[i], s=point_size, label='Data', zorder=2 )
+        
+        ax[i].fill_between( tr_spec[run]['wavelength'][:7], (tr_spec[run]['RpRs']['value']**2 - mean)[6] / transit_depth_unit, (tr_spec[run]['RpRs']['value']**2 - mean)[:7] / transit_depth_unit, color='blue', alpha=0.3, label='H$_2$O')
+        ax[i].fill_between( tr_spec[run]['wavelength'][6:9], (tr_spec[run]['RpRs']['value']**2 - mean)[6] / transit_depth_unit, (tr_spec[run]['RpRs']['value']**2 - mean)[6:9] / transit_depth_unit, color='green', alpha=0.3, label='SiO')
+        ax[i].fill_between( tr_spec[run]['wavelength'][8:], (tr_spec[run]['RpRs']['value']**2 - mean)[6] / transit_depth_unit, (tr_spec[run]['RpRs']['value']**2 - mean)[8:] / transit_depth_unit, color='orange', alpha=0.3, label='CO')
+        ax[i].set_xlabel( 'Wavelength [$\mu$m]' )
+        ax[i].xaxis.set_minor_locator(AutoMinorLocator())
+        ax[i].yaxis.set_minor_locator(AutoMinorLocator())
+        # ax[i].set_title( run )
+    if transit_depth_unit == 1.0E-6:
+        ax[0].set_ylabel( 'Transit depth - offset [ppm]' )
+    elif transit_depth_unit == 1.0E-2:
+        ax[0].set_ylabel( 'Transit depth - offset [\%]' )
+    else:
+        ax[0].set_ylabel( 'Transit depth - offset' )
+    ax[0].legend( loc = 'upper left', fontsize='small' )
+    ax[0].set_xlim( [2.7,5.1] )
+    ax[0].set_ylim( limits )
+    # fig.tight_layout()
+    if ( len(opath) > 0):
+        pylab.savefig( opath + '.png', dpi=600, bbox_inches='tight' )
+    plt.show()
+    plt.close()
 
 def Transmission_Spectrum_nruns_errorbars( tr_spec, transit_depth_unit=1., transit_depth_limits=None, uncertainty_limits=None, title=None, opath='' ):
     
@@ -2434,12 +2707,12 @@ def planet_rotation( tr_spec, x_range = [2.7, 5.2], opath = '' ):
         plt.show()
     plt.close()
 
-def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.2], opath = '' ):
+def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.15], opath = '' ):
     
     point_size = 20.
     errorbar_size = 1.
     data_colors = ['blue', 'green', 'purple']
-    model_colors = ['black', 'orange', 'red']
+    model_colors = ['black', 'red', 'orange']
     markers = ['d', 's', '^']
     keys = list(tr_spec.keys())
     try:
@@ -2462,10 +2735,17 @@ def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.2], opath =
     fig, ax = plt.subplots( 3, 1, figsize=[6,7.8], sharex=True )    # [6,7.8]
     plt.rcParams.update({'text.usetex' : True, 'font.family' : 'sans-serif'})
     
-    model_binedges = np.linspace( x_range[0], x_range[1], 400 )
+    data_mean = np.mean(tr_spec[keys[0]]['R0']['value'][:7]*1.0E2)
     
     for i in range(len(ax)):
-        wavelength_offset = -0.00 #0.01
+        wavelength_offset = -0.00
+        if i == 0:
+            unit_conversion = 1.0E2
+        elif i == 1:
+            unit_conversion = 1.0E2/24.
+        else:
+            unit_conversion = 1.0E2/(24.**2)
+        
         for j, key in enumerate(keys):
             # Data
             try:
@@ -2475,8 +2755,9 @@ def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.2], opath =
                 else:
                     # If not, just use symmetric errorbars
                     errorbars = tr_spec[key]['R' + str(i)]['stderr']
-                ax[i].errorbar( tr_spec[key]['wavelength'] + wavelength_offset, tr_spec[key]['R' + str(i)]['value'], xerr=tr_spec[key]['wavelength_halfwidth'], yerr=errorbars, color=data_colors[j], elinewidth=errorbar_size, ls='none', zorder=4 )
-                ax[i].scatter( tr_spec[key]['wavelength'] + wavelength_offset, tr_spec[key]['R' + str(i)]['value'], c='white', edgecolor=data_colors[j], s=point_size, marker=markers[j], zorder=5, label=key )
+                    
+                ax[i].errorbar( tr_spec[key]['wavelength'] + wavelength_offset, tr_spec[key]['R' + str(i)]['value']*unit_conversion, xerr=tr_spec[key]['wavelength_halfwidth'], yerr=errorbars*unit_conversion, color=data_colors[j], elinewidth=errorbar_size, ls='none', zorder=4 )
+                ax[i].scatter( tr_spec[key]['wavelength'] + wavelength_offset, tr_spec[key]['R' + str(i)]['value']*unit_conversion, c='white', edgecolor=data_colors[j], s=point_size, marker=markers[j], zorder=5, label=key )
             except KeyError:
                 print(key, 'has no', 'R' + str(i))
             wavelength_offset += 0.01
@@ -2485,25 +2766,26 @@ def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.2], opath =
         # Models
         for j, key in enumerate(model_keys):
             try:
-                model_spectrum = models[key]['R' + str(i)]
-                if i == 0:
-                    model_spectrum -= 0.00275
+                model_spectrum = models[key]['R' + str(i)]*unit_conversion
+                
+                if i==0:
+                    model_spectrum -= np.mean(model_spectrum[176:]) - data_mean
                 # binned_highres, applied_bin_edges, indices = binned_statistic( models[key]['wavelength'], model_spectrum, bins=model_binedges )
                 # ax[i].plot( Utils.bin_edges_into_middles(model_binedges), binned_highres, color=model_colors[j], alpha=0.5, zorder=1 )
-                ax[i].plot( models[key]['wavelength'], model_spectrum, color=model_colors[j], alpha=0.5, zorder=1 )
+                ax[i].plot( models[key]['wavelength'], model_spectrum, color=model_colors[j], alpha=0.5, zorder=1 - float(j)*0.1 )
                 # y_offset = np.average( tr_spec[key]['R' + str(i)]['value'], weights=1./tr_spec[key]['R' + str(i)]['stderr'] ) / np.mean(models[key]['R' + str(i)])
                 
                 # NRS1
                 binned_model, applied_bin_edges, indices = binned_statistic( models[key]['wavelength'], model_spectrum, bins=bin_edges['NRS1'] )
-                ax[i].scatter( Utils.bin_edges_into_middles(bin_edges['NRS1']), binned_model, c='white', edgecolor=model_colors[j], s=point_size, zorder=3, label=key )
-                ax[i].errorbar( Utils.bin_edges_into_middles(bin_edges['NRS1']), binned_model, ecolor=model_colors[j], xerr=Utils.bin_edges_into_halfwidths(bin_edges['NRS1']), ls='None', zorder=2 )
+                ax[i].scatter( Utils.bin_edges_into_middles(bin_edges['NRS1']), binned_model, c='white', edgecolor=model_colors[j], s=point_size, zorder=3 - float(j)*0.1, label=key )
+                ax[i].errorbar( Utils.bin_edges_into_middles(bin_edges['NRS1']), binned_model, ecolor=model_colors[j], xerr=Utils.bin_edges_into_halfwidths(bin_edges['NRS1']), ls='None', zorder=2 - float(j)*0.1 )
                 # if i==1:
                 #     ax[i].scatter( Utils.bin_edges_into_middles(bin_edges['NRS1']), binned_model * y_offset, c='white', edgecolor='orange', s=point_size, zorder=10 )
                 
                 # NRS2
                 binned_model, applied_bin_edges, indices = binned_statistic( models[key]['wavelength'], model_spectrum, bins=bin_edges['NRS2'] )
-                ax[i].scatter( Utils.bin_edges_into_middles(bin_edges['NRS2']), binned_model, c='white', edgecolor=model_colors[j], s=point_size, zorder=3 )
-                ax[i].errorbar( Utils.bin_edges_into_middles(bin_edges['NRS2']), binned_model, ecolor=model_colors[j], xerr=Utils.bin_edges_into_halfwidths(bin_edges['NRS2']), ls='None', zorder=2 )
+                ax[i].scatter( Utils.bin_edges_into_middles(bin_edges['NRS2']), binned_model, c='white', edgecolor=model_colors[j], s=point_size, zorder=3 - float(j)*0.1 )
+                ax[i].errorbar( Utils.bin_edges_into_middles(bin_edges['NRS2']), binned_model, ecolor=model_colors[j], xerr=Utils.bin_edges_into_halfwidths(bin_edges['NRS2']), ls='None', zorder=2 - float(j)*0.1 )
                 # if i==1:
                 #     ax[i].scatter( Utils.bin_edges_into_middles(bin_edges['NRS2']), binned_model * y_offset, c='white', edgecolor='orange', s=point_size, zorder=10 )
                 
@@ -2512,14 +2794,38 @@ def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.2], opath =
     
     ax[0].set_xlim( x_range )
     
-    ax[1].legend( fontsize='small' )
-    ax[0].set_ylabel('$R_0/R_*$') 
-    ax[1].set_ylabel('$R_1/R_*$ [day$^{-1}$]')  
+    ax[1].legend( fontsize='x-small' )
+    ax[0].set_ylabel('$R_0/R_*$ [\%]')
+    ax[1].set_ylabel('$R_1/R_*$ [\%\,hr$^{-1}$]')
+    
+    # Lines at zero
+    for i in range(2):
+        ax[i+1].hlines( 0., x_range[0], x_range[1], linestyle='--', alpha=1.0, color='grey', zorder=1. )
+    
+    y_offset = 0.02#5
+    x_h2o = 3.25
+    y_h2o = 12.57
+    ax[0].text( x_h2o, y_h2o, 'H$_2$O', color='blue' )
+    ax[0].plot( [2.7, x_h2o - 0.035], [y_h2o + y_offset, y_h2o + y_offset], color='blue' )
+    ax[0].plot( [x_h2o + 0.175, 4.0], [y_h2o + y_offset, y_h2o + y_offset], color='blue' )
+    
+    x_sio = 4.1
+    y_sio = 12.5
+    ax[0].text( x_sio, y_sio, 'SiO', color='green' )
+    ax[0].plot( [4.0, x_sio - 0.025], [y_sio + y_offset, y_sio + y_offset], color='green' )
+    ax[0].plot( [x_sio + 0.1275, 4.3], [y_sio + y_offset, y_sio + y_offset], color='green' )
+    
+    x_co = 4.65
+    y_co = 12.
+    ax[0].text( x_co, y_co, 'CO', color='orange' )
+    ax[0].plot( [4.3, x_co - 0.035], [y_co + y_offset, y_co + y_offset], color='orange' )
+    ax[0].plot( [x_co + 0.125, 5.2], [y_co + y_offset, y_co + y_offset], color='orange' )
+    
     if len(ax)>2:
-        ax[2].set_ylabel('$R_2/R_*$ [day$^{-2}$]')  
-    ax[-1].set_xlabel('Wavelength [micron]')
+        ax[2].set_ylabel('$R_2/R_*$ [\%\,hr$^{-2}$]')  
+    ax[-1].set_xlabel('Wavelength [$\mu$m]')
     ax[0].xaxis.set_minor_locator(AutoMinorLocator())
-    # ax.grid()
+    
     if ( len(opath) > 0):
         pylab.savefig( opath + '.pdf', dpi=300, bbox_inches='tight' )
     if pr.SHOW_PLOTS:
@@ -2843,8 +3149,8 @@ def Transmission_Spectrum_nruns_residuals( tr_spec, limits=None, title=None, opa
     i = 0
     for run in runs:
         if 'transit_depth' in list(tr_spec[run].keys()):
-            ax[0].errorbar( tr_spec[run]['wavelength']['value'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, yerr=tr_spec[run]['transit_depth']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=palette[i], alpha=alpha)
-            ax[0].scatter( tr_spec[run]['wavelength']['value'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, c=palette[i], s=point_size, alpha=alpha, label=run, marker=markers[i] )
+            ax[0].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, yerr=tr_spec[run]['transit_depth']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=palette[i], alpha=alpha)
+            ax[0].scatter( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, c=palette[i], s=point_size, alpha=alpha, label=run, marker=markers[i] )
         else:
             if 'upperr' in list(tr_spec[run]['RpRs'].keys()):
                 # Check, if the transmission spectrum has asymmetric errorbars stored
@@ -2853,12 +3159,12 @@ def Transmission_Spectrum_nruns_residuals( tr_spec, limits=None, title=None, opa
                 upper_error = percentile84**2 - tr_spec[run]['RpRs']['value']**2
                 lower_error = tr_spec[run]['RpRs']['value']**2 - percentile16**2
                 asymmetric_error = np.array(list(zip(lower_error, upper_error))).T
-                ax[0].errorbar( tr_spec[run]['wavelength']['value'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=palette[i], alpha=alpha)
+                ax[0].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=palette[i], alpha=alpha)
             else:
                 # If not, just use symmetric errorbars
-                ax[0].errorbar( tr_spec[run]['wavelength']['value'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, yerr=2.*tr_spec[run]['RpRs']['value']*tr_spec[run]['RpRs']['stderr'], elinewidth=0.75, ls='none', ecolor=palette[i], alpha=alpha)
+                ax[0].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, yerr=2.*tr_spec[run]['RpRs']['value']*tr_spec[run]['RpRs']['stderr'], elinewidth=0.75, ls='none', ecolor=palette[i], alpha=alpha)
             
-            ax[0].scatter( tr_spec[run]['wavelength']['value'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, c=palette[i], s=point_size, alpha=alpha, label=run, marker=markers[i] )
+            ax[0].scatter( tr_spec[run]['wavelength'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, c=palette[i], s=point_size, alpha=alpha, label=run, marker=markers[i] )
         
         i += 1
     
@@ -2868,22 +3174,22 @@ def Transmission_Spectrum_nruns_residuals( tr_spec, limits=None, title=None, opa
     ax[0].legend(fontsize='small')
     
     # Bin the first run as a reference for all over runs
-    bin_edges = np.linspace( min(tr_spec[runs[0]]['wavelength']['value']), max(tr_spec[runs[0]]['wavelength']['value']), 325 )
+    bin_edges = np.linspace( min(tr_spec[runs[0]]['wavelength']), max(tr_spec[runs[0]]['wavelength']), 325 )
     wavelength = Utils.bin_edges_into_middles(bin_edges)
     
     i = 0
     while i<n:
         if 'transit_depth' in list(tr_spec[runs[i]].keys()):
-            binned_transit_depth_ref, applied_bin_edges, indices = binned_statistic( tr_spec[runs[i]]['wavelength']['value'],  tr_spec[runs[i]]['transit_depth']['value'], bins=bin_edges )
+            binned_transit_depth_ref, applied_bin_edges, indices = binned_statistic( tr_spec[runs[i]]['wavelength'],  tr_spec[runs[i]]['transit_depth']['value'], bins=bin_edges )
         else:
-            binned_transit_depth_ref, applied_bin_edges, indices = binned_statistic( tr_spec[runs[i]]['wavelength']['value'],  tr_spec[runs[i]]['RpRs']['value']**2, bins=bin_edges )
+            binned_transit_depth_ref, applied_bin_edges, indices = binned_statistic( tr_spec[runs[i]]['wavelength'],  tr_spec[runs[i]]['RpRs']['value']**2, bins=bin_edges )
         
         j = i + 1
         while j < len(runs):
             if 'transit_depth' in list(tr_spec[runs[j]].keys()):
-                binned_transit_depth, applied_bin_edges, indices = binned_statistic( tr_spec[runs[j]]['wavelength']['value'],  tr_spec[runs[j]]['transit_depth']['value'], bins=bin_edges )
+                binned_transit_depth, applied_bin_edges, indices = binned_statistic( tr_spec[runs[j]]['wavelength'],  tr_spec[runs[j]]['transit_depth']['value'], bins=bin_edges )
             else:
-                binned_transit_depth, applied_bin_edges, indices = binned_statistic( tr_spec[runs[j]]['wavelength']['value'],  tr_spec[runs[j]]['RpRs']['value']**2, bins=bin_edges )
+                binned_transit_depth, applied_bin_edges, indices = binned_statistic( tr_spec[runs[j]]['wavelength'],  tr_spec[runs[j]]['RpRs']['value']**2, bins=bin_edges )
             
             residuals = (binned_transit_depth - binned_transit_depth_ref)/residual_unit
             residuals = residuals - np.nanmean(residuals)
@@ -2933,7 +3239,7 @@ def Transmission_Spectrum_nruns_residuals_nobin( tr_spec, transit_depth_limits=N
             ax[0].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', alpha=alpha)
         else:
             # If not, just use symmetric errorbars
-            ax[0].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, yerr=2.*tr_spec[run]['RpRs']['value']*tr_spec[run]['RpRs']['stderr'], elinewidth=0.75, ls='none', alpha=alpha)
+            ax[0].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, yerr=2.*tr_spec[run]['RpRs']['value']*tr_spec[run]['RpRs']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', alpha=alpha)
             
         ax[0].scatter( tr_spec[run]['wavelength'], tr_spec[run]['RpRs']['value']**2 / transit_depth_unit, s=point_size, alpha=alpha, label=run )
         
@@ -2950,12 +3256,12 @@ def Transmission_Spectrum_nruns_residuals_nobin( tr_spec, transit_depth_limits=N
         j = i + 1
         while j < len(runs):
             residuals = (tr_spec[runs[j]]['RpRs']['value']**2 - tr_spec[runs[i]]['RpRs']['value']**2)/residual_unit
-            residuals = residuals - np.nanmean(residuals)
+            # residuals = residuals - np.nanmean(residuals)
             wavelength_plot, residuals_plot = Utils.kick_out_nans(tr_spec[runs[j]]['wavelength'], residuals)
             
-            a1, a0 = np.polyfit(wavelength_plot, residuals_plot, 1)
-            ax[1].plot( wavelength_plot, a1*wavelength_plot + a0 )
-            ax[1].scatter( wavelength_plot, residuals_plot, s=1., label=runs[j] + ' - ' + runs[i] + ' (' + str(int(abs(a1)+0.5)) + ' ppm/micron)' ) 
+            # a1, a0 = np.polyfit(wavelength_plot, residuals_plot, 1)
+            # ax[1].plot( wavelength_plot, a1*wavelength_plot + a0 )
+            ax[1].scatter( wavelength_plot, residuals_plot, s=1., label=runs[j] + ' - ' + runs[i] ) 
             
             j += 1
             
