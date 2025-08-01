@@ -75,7 +75,7 @@ for i, k in enumerate(keys):
     for j in range(len(batpar)):
         batpar[j] = calculateBatmanModel.fix_broad_fit_parameters(batpar[j], broad_fit_params)
     
-    Plot.corner_plot( mcmc_result, Utils.dictionary2array(mcmc_params['max_probabilities']), os.path.join(mcmc_dir, 'corner_' + k) )
+    Plot.corner_plot( mcmc_result, os.path.join(mcmc_dir, 'corner_' + k), markings=Utils.dictionary2array(mcmc_params['max_probabilities']) )
     
     # trans_spec['chisquare'][i] = Utils.compare_data_and_model_spec( spec_lc[k], best_params, broad_fit_params, mcmc_dir, k, mcmc_result )
     Utils.pickle_save( mcmc_dir, k + '_' + pr.PARAMETERS_FILE, mcmc_params )

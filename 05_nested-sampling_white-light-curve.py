@@ -88,7 +88,7 @@ if pr.USE_ASTRONODES:
 else:
     sampler = dynesty.NestedSampler( log_likelihood, Utils.prior_transform, ndim, ptform_args=[priors], nlive=pr.LIVE_POINTS )
 
-sampler.run_nested( print_progress=not(pr.USE_ASTRONODES) )
+sampler.run_nested( dlogz=pr.NESTED_STOPPING, print_progress=not(pr.USE_ASTRONODES) )
 
 if pr.USE_ASTRONODES:
     pool.close()

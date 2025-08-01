@@ -45,7 +45,7 @@ detectors = list(broad_lc.keys())
 
 mcmc_params = Utils.emcee_distributions_into_dictionaries( mcmc_result )
 if pr.SAVE_PLOTS:
-    Plot.corner_plot( mcmc_result, Utils.dictionary2array(mcmc_params['max_probabilities']), os.path.join(mcmc_dir, 'corner') )
+    Plot.corner_plot( mcmc_result, os.path.join(mcmc_dir, 'corner'), markings=Utils.dictionary2array(mcmc_params['max_probabilities']) )
 n_var = len(mcmc_params['max_probabilities'])
 mcmc_params = Utils.add_fixed_parameters2dicts(mcmc_params, prelim_fit.params)
 Plot.white_light_curves(broad_lc, mcmc_params['max_probabilities'], emcee_result=mcmc_result, opath=os.path.join(mcmc_dir, 'white-fit'))

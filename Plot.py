@@ -2453,6 +2453,77 @@ def Transmission_Spectrum_nruns_meansubtracted( tr_spec, transit_depth_unit=1., 
         plt.show()
     plt.close()
 
+def Transmission_Spectrum_nruns_npanels( tr_spec, models = None, transit_depth_unit=1., limits=None, title=None, opath='' ):
+    
+    keys = list(tr_spec.keys())
+    point_size = 8.
+    alpha = 0.8
+    colors = ['black', 'black', 'black']
+    markers = ['o', 'o', 'o']
+    
+    # Clear plot memory and plot the Transmission spectrum
+    plt.clf()
+    fig, ax = plt.subplots( 1, len(keys), figsize=[5,2.3], sharex=True )
+    plt.rcParams.update({'text.usetex' : True, 'font.family' : 'sans-serif'})
+    
+    for i, run in enumerate(keys):
+        if 'transit_depth' in list(tr_spec[run].keys()):
+            if 'upperr' in list(tr_spec[run]['transit_depth'].keys()):
+                # Check, if the transmission spectrum has asymmetric errorbars stored
+                asymmetric_error = np.array(list(zip(tr_spec[run]['transit_depth']['lowerr'], tr_spec[run]['transit_depth']['upperr']))).T
+                ax[i].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            else:
+                # If not, just use symmetric errorbars
+                ax[i].errorbar( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, yerr=tr_spec[run]['transit_depth']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            ax[i].scatter( tr_spec[run]['wavelength'], tr_spec[run]['transit_depth']['value'] / transit_depth_unit, c='white', edgecolor=colors[i], marker=markers[i], s=point_size, alpha=alpha, label=run, zorder=2 )
+        else:
+            mean = 0.
+            if 'upperr' in list(tr_spec[run]['RpRs'].keys()):
+                # Check, if the transmission spectrum has asymmetric errorbars stored
+                percentile16 = tr_spec[run]['RpRs']['value'] - tr_spec[run]['RpRs']['lowerr']
+                percentile84 = tr_spec[run]['RpRs']['value'] + tr_spec[run]['RpRs']['upperr']
+                upper_error = percentile84**2 - tr_spec[run]['RpRs']['value']**2
+                lower_error = tr_spec[run]['RpRs']['value']**2 -percentile16**2
+                asymmetric_error = np.array(list(zip(lower_error, upper_error))).T
+                ax[i].errorbar( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, yerr=asymmetric_error / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            else:
+                # If not, just use symmetric errorbars
+                ax[i].errorbar( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, xerr=tr_spec[run]['wavelength_halfwidth'], yerr=2.*tr_spec[run]['RpRs']['value']*tr_spec[run]['RpRs']['stderr'] / transit_depth_unit, elinewidth=0.75, ls='none', ecolor=colors[i], alpha=alpha, zorder=1)
+            ax[i].scatter( tr_spec[run]['wavelength'], (tr_spec[run]['RpRs']['value']**2 - mean) / transit_depth_unit, c='white', edgecolor=colors[i], marker=markers[i], s=point_size, label='Data', zorder=2 )
+            data_mean = np.mean( tr_spec[run]['RpRs']['value'][:7]**2 )
+            
+        # Models        
+        try:
+            i_end = np.argmin( np.abs(models[run]['wavelength']-4.) )
+            offset = data_mean - np.mean( models[run]['transit_depth'][i_end:] )
+            ax[i].plot(models[run]['wavelength'], (models[run]['transit_depth']+offset)/transit_depth_unit)
+        except TypeError:
+            pass
+        
+        ax[i].fill_between( tr_spec[run]['wavelength'][:7], (tr_spec[run]['RpRs']['value']**2 - mean)[6] / transit_depth_unit, (tr_spec[run]['RpRs']['value']**2 - mean)[:7] / transit_depth_unit, color='blue', alpha=0.3, label='H$_2$O')
+        ax[i].fill_between( tr_spec[run]['wavelength'][6:9], (tr_spec[run]['RpRs']['value']**2 - mean)[6] / transit_depth_unit, (tr_spec[run]['RpRs']['value']**2 - mean)[6:9] / transit_depth_unit, color='green', alpha=0.3, label='SiO')
+        ax[i].fill_between( tr_spec[run]['wavelength'][8:], (tr_spec[run]['RpRs']['value']**2 - mean)[6] / transit_depth_unit, (tr_spec[run]['RpRs']['value']**2 - mean)[8:] / transit_depth_unit, color='orange', alpha=0.3, label='CO')
+        ax[i].set_ylim( [tr_spec[run]['RpRs']['value'][6]**2 / transit_depth_unit - 0.0075, tr_spec[run]['RpRs']['value'][6]**2 / transit_depth_unit + 0.105] )
+        ax[i].set_xlabel( 'Wavelength [$\mu$m]' )
+        ax[i].xaxis.set_minor_locator(AutoMinorLocator())
+        ax[i].yaxis.set_major_locator( MultipleLocator(0.02) )
+        ax[i].yaxis.set_minor_locator(AutoMinorLocator())
+        # ax[i].set_title( run )
+    if transit_depth_unit == 1.0E-6:
+        ax[0].set_ylabel( 'Transit depth [ppm]' )
+    elif transit_depth_unit == 1.0E-2:
+        ax[0].set_ylabel( 'Transit depth [\%]' )
+    else:
+        ax[0].set_ylabel( 'Transit depth' )
+    ax[0].legend( loc = 'upper left', fontsize='small' )
+    ax[0].set_xlim( [2.7,5.1] )
+    
+    fig.tight_layout()
+    if ( len(opath) > 0):
+        pylab.savefig( opath + '.png', dpi=600, bbox_inches='tight' )
+    plt.show()
+    plt.close()
+
 def Transmission_Spectrum_nruns_meansubtracted_npanels( tr_spec, transit_depth_unit=1., limits=None, title=None, opath='' ):
     
     keys = list(tr_spec.keys())
@@ -2513,7 +2584,8 @@ def Transmission_Spectrum_nruns_meansubtracted_npanels( tr_spec, transit_depth_u
         pylab.savefig( opath + '.png', dpi=600, bbox_inches='tight' )
     plt.show()
     plt.close()
-
+    
+    
 def Transmission_Spectrum_nruns_errorbars( tr_spec, transit_depth_unit=1., transit_depth_limits=None, uncertainty_limits=None, title=None, opath='' ):
     
     point_size = 8.
@@ -2707,11 +2779,10 @@ def planet_rotation( tr_spec, x_range = [2.7, 5.2], opath = '' ):
         plt.show()
     plt.close()
 
-def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.15], opath = '' ):
+def planet_rotation_nruns( tr_spec, models = None, data_colors = ['blue', 'green', 'purple'], x_range = [2.7, 5.15], opath = '' ):
     
     point_size = 20.
     errorbar_size = 1.
-    data_colors = ['blue', 'green', 'purple']
     model_colors = ['black', 'red', 'orange']
     markers = ['d', 's', '^']
     keys = list(tr_spec.keys())
@@ -2794,7 +2865,7 @@ def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.15], opath 
     
     ax[0].set_xlim( x_range )
     
-    ax[1].legend( fontsize='x-small' )
+    ax[1].legend( fontsize='small' )
     ax[0].set_ylabel('$R_0/R_*$ [\%]')
     ax[1].set_ylabel('$R_1/R_*$ [\%\,hr$^{-1}$]')
     
@@ -2804,19 +2875,19 @@ def planet_rotation_nruns( tr_spec, models = None, x_range = [2.7, 5.15], opath 
     
     y_offset = 0.02#5
     x_h2o = 3.25
-    y_h2o = 12.57
+    y_h2o = 12.45#12.57
     ax[0].text( x_h2o, y_h2o, 'H$_2$O', color='blue' )
     ax[0].plot( [2.7, x_h2o - 0.035], [y_h2o + y_offset, y_h2o + y_offset], color='blue' )
     ax[0].plot( [x_h2o + 0.175, 4.0], [y_h2o + y_offset, y_h2o + y_offset], color='blue' )
     
     x_sio = 4.1
-    y_sio = 12.5
+    y_sio = 12.4#12.5
     ax[0].text( x_sio, y_sio, 'SiO', color='green' )
     ax[0].plot( [4.0, x_sio - 0.025], [y_sio + y_offset, y_sio + y_offset], color='green' )
     ax[0].plot( [x_sio + 0.1275, 4.3], [y_sio + y_offset, y_sio + y_offset], color='green' )
     
     x_co = 4.65
-    y_co = 12.
+    y_co = 12.1#12.
     ax[0].text( x_co, y_co, 'CO', color='orange' )
     ax[0].plot( [4.3, x_co - 0.035], [y_co + y_offset, y_co + y_offset], color='orange' )
     ax[0].plot( [x_co + 0.125, 5.2], [y_co + y_offset, y_co + y_offset], color='orange' )
@@ -4464,23 +4535,19 @@ def emcee_walkers( samples, variables, opath='' ):
     
     plt.close()
     
-def corner_plot( mcmc_result, truths, opath):
+def corner_plot( mcmc_result, opath, markings = None, mcmc_result2 = None):
     
     axis_labels = []
     for parameter in mcmc_result['parameters']:
         axis_labels += [Utils.corner_labels( parameter )]
-    
-    # # Unit conversion into ppm
-    # for parameter in ['sigma_sys_NRS1', 'sigma_sys_NRS2']:
-    #     try:
-    #         i = np.where( np.array(mcmc_result['parameters']) == parameter )[0][0]
-    #         mcmc_result['flat_chain'][:,i] = mcmc_result['flat_chain'][:,i] * 1.0E6
-    #     except IndexError:
-    #         pass
-    
+        
     plt.clf()
     plt.rcParams.update({'text.usetex' : True, 'font.family' : 'sans-serif'})
-    cornerplot = corner(mcmc_result['flat_chain'], labels=axis_labels, show_titles=True, truths=truths, quantiles=[0.16, 0.5, 0.84] )
+    cornerplot = corner(mcmc_result['flat_chain'], labels=axis_labels, show_titles=True, truths=markings, quantiles=[0.16, 0.5, 0.84], color='green' )
+    try:
+        corner(mcmc_result2['flat_chain'], fig=cornerplot, quantiles=[0.16, 0.5, 0.84], color='blue' )
+    except TypeError:
+        pass
     if pr.USE_ASTRONODES:
         cornerplot.savefig( opath + '.png', dpi=50 )
     else:

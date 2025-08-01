@@ -95,7 +95,12 @@ def Broad( pars, z, batpar, batmodel, nrs ):
     partial_phasecurve = np.zeros(n)
     for i in range(n):
         if z['t'][i] > 0.2 and z['t'][i] < 1.0:
-            partial_phasecurve[i] = pars['p0_' + nrs] + pars['p1_' + nrs]*z['t'][i] + pars['p2_' + nrs]*z['t'][i]**2
+            if pr.EMISSION == 'polynomial':
+                partial_phasecurve[i] = pars['p0_' + nrs] + pars['p1_' + nrs]*z['t'][i] + pars['p2_' + nrs]*z['t'][i]**2
+            elif pr.EMISSION == 'cosine':
+                partial_phasecurve[i] = pars['B_' + nrs] + pars['A_' + nrs] * np.cos( 2.*np.pi*z['t'][i]/pr.ORBITAL_PERIOD['median'] + pars['phi_' + nrs])
+            else:
+                partial_phasecurve[i] = 0.
     
     return baseline * (transit_model + partial_phasecurve)
 

@@ -45,7 +45,7 @@ mcmc_chain = Utils.pickle_read( os.path.join(mcmc_dir, pr.CHAIN_FILE) )
 
 mcmc_params = Utils.emcee_distributions_into_dictionaries( mcmc_chain )
 trans_spec = Utils.simultaneous_mcmc2trans_spec( mcmc_params, lc )
-Plot.corner_plot( mcmc_chain, Utils.dictionary2array(mcmc_params['max_probabilities']), os.path.join(mcmc_dir, 'corner') )
+Plot.corner_plot( mcmc_chain, markings=Utils.dictionary2array(mcmc_params['max_probabilities']) )
 n_var = len(mcmc_params['max_probabilities'])
 mcmc_params = Utils.add_fixed_parameters2dicts(mcmc_params, prelim_fit.params)
 

@@ -35,13 +35,13 @@ def calc_residuals( pars, lc, batpar, batmodel ):
     return residuals
 
 ######## Set directories ########
-fit_in_dir = os.path.join( pr.BROAD_DIR, pr.MCMC_DIR )
-broad_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.PARAMETERS_FILE) )
-broad_fit_params = broad_fit['max_probabilities']
+# fit_in_dir = os.path.join( pr.BROAD_DIR, pr.MCMC_DIR )
+# broad_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.PARAMETERS_FILE) )
+# broad_fit_params = broad_fit['max_probabilities']
 
-# fit_in_dir = os.path.join( pr.BROAD_DIR, pr.PRELIM_DIR )
-# broad_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.FIT_FILE) )
-# broad_fit_params = broad_fit.params.valuesdict()
+fit_in_dir = os.path.join( pr.BROAD_DIR, pr.PRELIM_DIR )
+broad_fit = Utils.pickle_read( os.path.join(fit_in_dir, pr.FIT_FILE) )
+broad_fit_params = broad_fit.params.valuesdict()
 
 fit_out_dir = os.path.join( pr.SPEC_DIR, 'all_' + pr.PRELIM_DIR )
 

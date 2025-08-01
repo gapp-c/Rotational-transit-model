@@ -51,71 +51,72 @@ else:
     number_of_steps = 20000
     burn_number = 4000
 
-for molecule in pr.MOLECULES:
-    specfit_in_dir = os.path.join( pr.RESULTS_DIR, molecule, pr.PRELIM_DIR )
-    specfit_out_dir = os.path.join( pr.RESULTS_DIR, molecule, pr.MCMC_DIR )
+if not(pr.EUREKA):
+    for molecule in pr.SINGLE_LIGHTCURVES:
+        specfit_in_dir = os.path.join( pr.RESULTS_DIR, molecule, pr.PRELIM_DIR )
+        specfit_out_dir = os.path.join( pr.RESULTS_DIR, molecule, pr.MCMC_DIR )
     
-    ######## Input ########
+        ######## Input ########
     
-    lc = Utils.pickle_read( os.path.join( pr.RESULTS_DIR, molecule, pr.LC_FILE ) )
+        lc = Utils.pickle_read( os.path.join( pr.RESULTS_DIR, molecule, pr.LC_FILE ) )
     
-    prelim_fit = Utils.pickle_read( os.path.join(specfit_in_dir, pr.FIT_FILE) )
-    p0 = prelim_fit.params
+        prelim_fit = Utils.pickle_read( os.path.join(specfit_in_dir, pr.FIT_FILE) )
+        p0 = prelim_fit.params
     
-    # Add systematic uncertainty to the fit parameters and run the MCMC
-    if pr.ADD_SYSTEMATIC_UNCERTAINTY:
-        p0.add('sigma_sys', value = 0., min = 0. )
-        
-    priors = initialParameters.lmfitparams2priors( p0 )
-    
-    # if not(pr.KIPPING_LD_PARAMETERS):
-        #     if pr.FIT_1ST_LD_PARAMETER:
-            #         p0['u1'].vary = True
-            #         priors['u1'] = Utils.make_prior_gaussian( lc['u1'], lc['u1_err'] )
-        #     if pr.FIT_2ND_LD_PARAMETER:
-            #         p0['u2'].vary = True
-            #         priors['u2'] = Utils.make_prior_gaussian( lc['u2'], lc['u2_err'] )
-            
-    varied_parameters = Utils.varied_parameters_lmfit(p0)
-    
-    # First, initialize a batman model for every data point to change the transit radius as a function of time
-    batpar, batmodel = calculateBatmanModel.create_Batman_arrays( lc['bjd_tdb'] )
-    for j in range(len(batpar)):
-        batpar[j] = calculateBatmanModel.fix_broad_fit_parameters(batpar[j], broad_fit_params)
-    
-    # This is the function we want to maximize
-    def log_posterior( pars ):
-        pars_dict = Utils.arrays2dict( pars, varied_parameters )
-        log_prior = Utils.evaluate_priors(priors, pars_dict)
-        if not np.isfinite(log_prior):
-            return -np.inf
-        
-        pars_dict = Utils.add_fixed_parameters2dict( pars_dict, p0 )
-        model = calculateBatmanModel.Spec( pars_dict, lc, batpar, batmodel )
-        
+        # Add systematic uncertainty to the fit parameters and run the MCMC
         if pr.ADD_SYSTEMATIC_UNCERTAINTY:
-            summand = (lc['lcVals']-model)**2 / (lc['lcUncs']**2 + (pars_dict['sigma_sys']*1.0E-6)**2) + np.log( 2. * np.pi * (lc['lcUncs']**2 + (pars_dict['sigma_sys']*1.0E-6)**2) )
-        else:
-            summand = (lc['lcVals']-model)**2 / lc['lcUncs']**2 + np.log( 2. * np.pi * lc['lcUncs']**2 )
+            p0.add('sigma_sys', value = 0., min = 0. )
+        
+        priors = initialParameters.lmfitparams2priors( p0 )
+    
+        # if not(pr.KIPPING_LD_PARAMETERS):
+            #     if pr.FIT_1ST_LD_PARAMETER:
+                #         p0['u1'].vary = True
+                #         priors['u1'] = Utils.make_prior_gaussian( lc['u1'], lc['u1_err'] )
+                #     if pr.FIT_2ND_LD_PARAMETER:
+                    #         p0['u2'].vary = True
+                    #         priors['u2'] = Utils.make_prior_gaussian( lc['u2'], lc['u2_err'] )
             
-        return log_prior - 0.5*np.sum( summand )
+        varied_parameters = Utils.varied_parameters_lmfit(p0)
     
-    # Spread the initial positions of the walkers around the best-fit values from the preliminary fit
-    walker_positions = Utils.gaussian_ball( p0, number_of_walkers, priors )
+        # First, initialize a batman model for every data point to change the transit radius as a function of time
+        batpar, batmodel = calculateBatmanModel.create_Batman_arrays( lc['bjd_tdb'] )
+        for j in range(len(batpar)):
+            batpar[j] = calculateBatmanModel.fix_broad_fit_parameters(batpar[j], broad_fit_params)
     
-    if pr.USE_ASTRONODES:
-        pool = Pool(pr.NUMBER_OF_CORES)
-        sampler = emcee.EnsembleSampler(number_of_walkers, len(varied_parameters), log_posterior, pool=pool )
-    else:
-        sampler = emcee.EnsembleSampler(number_of_walkers, len(varied_parameters), log_posterior )
+        # This is the function we want to maximize
+        def log_posterior( pars ):
+            pars_dict = Utils.arrays2dict( pars, varied_parameters )
+            log_prior = Utils.evaluate_priors(priors, pars_dict)
+            if not np.isfinite(log_prior):
+                return -np.inf
+        
+            pars_dict = Utils.add_fixed_parameters2dict( pars_dict, p0 )
+            model = calculateBatmanModel.Spec( pars_dict, lc, batpar, batmodel )
+        
+            if pr.ADD_SYSTEMATIC_UNCERTAINTY:
+                summand = (lc['lcVals']-model)**2 / (lc['lcUncs']**2 + (pars_dict['sigma_sys']*1.0E-6)**2) + np.log( 2. * np.pi * (lc['lcUncs']**2 + (pars_dict['sigma_sys']*1.0E-6)**2) )
+            else:
+                summand = (lc['lcVals']-model)**2 / lc['lcUncs']**2 + np.log( 2. * np.pi * lc['lcUncs']**2 )
+            
+            return log_prior - 0.5*np.sum( summand )
     
-    sampler.run_mcmc(walker_positions, number_of_steps, progress=not(pr.USE_ASTRONODES))
+        # Spread the initial positions of the walkers around the best-fit values from the preliminary fit
+        walker_positions = Utils.gaussian_ball( p0, number_of_walkers, priors )
     
-    if pr.USE_ASTRONODES:
-        pool.close()
-        pool.join()
+        if pr.USE_ASTRONODES:
+            pool = Pool(pr.NUMBER_OF_CORES)
+            sampler = emcee.EnsembleSampler(number_of_walkers, len(varied_parameters), log_posterior, pool=pool )
+        else:
+            sampler = emcee.EnsembleSampler(number_of_walkers, len(varied_parameters), log_posterior )
     
-    ### Optional diagnostic plot ###
-    Utils.pickle_save( specfit_out_dir, pr.CHAIN_FILE, Utils.emcee_sampler2dictionary( sampler, varied_parameters, burn_number, thin_number ) )
-    Plot.emcee_walkers( sampler.get_chain(), varied_parameters, opath=os.path.join(specfit_out_dir, 'walkers') )
+        sampler.run_mcmc(walker_positions, number_of_steps, progress=not(pr.USE_ASTRONODES))
+    
+        if pr.USE_ASTRONODES:
+            pool.close()
+            pool.join()
+    
+        ### Optional diagnostic plot ###
+        Utils.pickle_save( specfit_out_dir, pr.CHAIN_FILE, Utils.emcee_sampler2dictionary( sampler, varied_parameters, burn_number, thin_number ) )
+        Plot.emcee_walkers( sampler.get_chain(), varied_parameters, opath=os.path.join(specfit_out_dir, 'walkers') )
 

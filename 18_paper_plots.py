@@ -124,36 +124,36 @@ for i, reduction in enumerate(reductions):
 Plot.n_lightcurves_m_models_zoom( lcs, plot_params, emcee_result=mcmc_chains, scale_errorbars=True, opath=os.path.join(directories[-1] + '_' + models[0], 'single', 'co_lightcurve_fits') )
 
 
-# #%% Significances transit-only
+# #%% Significances transit+eclipses, old
 
 # lcs = ['Firefly', 'Eureka!']
-# lnZ0 = [9626.58, 9463.618]
-# lnZ1 = [9640.75, 9489.482]
-# lnZ2 = [9636.56, 9484.989]
-# print('Data reduction, Bayes factor(1-0), sigma significance (1-0), Bayes factor(2-0), sigma significance (2-0), Bayes factor(1-2), sigma significance (1-2)')
+# lnZ0 = [15122.641, 14892.17]
+# lnZ1 = [15136.765, 14914.49]
+# lnZ2 = [15134.797, 14914.91]
+# print('Data reduction, Bayes factor(2-0), sigma significance (2-0), Bayes factor(1-0), sigma significance (1-0), Bayes factor(1-2), sigma significance (1-2)')
 # for i in range(len(lcs)):
-#     B1 = np.exp(lnZ1[i]-lnZ0[i])
-#     sigma1 = Utils.bayes2Nsigma(B1)
 #     B2 = np.exp(lnZ2[i]-lnZ0[i])
-#     sigma2 = Utils.bayes2Nsigma(B2)
+#     sigma2 = Utils.bayes2Nsigma_benneke_seager_2013(B2)
+#     B1 = np.exp(lnZ1[i]-lnZ0[i])
+#     sigma1 = Utils.bayes2Nsigma_benneke_seager_2013(B1)
 #     B12 = np.exp(lnZ1[i]-lnZ2[i])
-#     sigma12 = Utils.bayes2Nsigma(B12)
-#     print( lcs[i], B1, sigma1, B2, sigma2, B12, sigma12)
+#     sigma12 = Utils.bayes2Nsigma_benneke_seager_2013(B12)
+#     print( lcs[i], B2, sigma2, B1, sigma1, B12, sigma12)
 
-#%% Significances transit+eclipses
+#%% Significances transit+eclipses, new
 
 lcs = ['Firefly', 'Eureka!']
-lnZ0 = [15122.641, 14892.17]
-lnZ1 = [15136.765, 14914.49]
-lnZ2 = [15134.797, 14914.91]
+lnZ0 = [15154.839, 14924.386]
+lnZ1 = [15168.416, 14949.250]
+lnZ2 = [15166.518, 14948.068]
 print('Data reduction, Bayes factor(2-0), sigma significance (2-0), Bayes factor(1-0), sigma significance (1-0), Bayes factor(1-2), sigma significance (1-2)')
 for i in range(len(lcs)):
     B2 = np.exp(lnZ2[i]-lnZ0[i])
-    sigma2 = Utils.bayes2Nsigma(B2)
+    sigma2 = Utils.bayes2Nsigma_benneke_seager_2013(B2)
     B1 = np.exp(lnZ1[i]-lnZ0[i])
-    sigma1 = Utils.bayes2Nsigma(B1)
+    sigma1 = Utils.bayes2Nsigma_benneke_seager_2013(B1)
     B12 = np.exp(lnZ1[i]-lnZ2[i])
-    sigma12 = Utils.bayes2Nsigma(B12)
+    sigma12 = Utils.bayes2Nsigma_benneke_seager_2013(B12)
     print( lcs[i], B2, sigma2, B1, sigma1, B12, sigma12)
 
 #%% R_p(t) plots
@@ -282,12 +282,12 @@ sigma_shading = [1.]#, 2., 3.]
 alpha_shading = 0.2
 
 # Which observations to plot
-fit_dirs = ['250429_linear', '250429_quadratic_ldc-priors', '250429_quadratic']
-fit_labels = ['$R_2/R_*=0$, uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, uniform priors on LDCs']
+fit_dirs = ['250429_linear', '250429_quadratic']
+fit_labels = ['$R_2/R_*=0$, uniform priors on LDCs', '$R_2/R_*$ free, uniform priors on LDCs']
 
 # Read models
 model_files = ["output_nominal"]#, "co_removed_from_morning"]
-model_labels = ["SPARC/MITgcm"]#, "CO removed from morning"]
+model_labels = ["SPARC/MITgcm, nominal"]#, "CO removed from morning"]
 model_styles = ['--', ':', '-.']
 models = {}
 for i, model_file in enumerate(model_files):
@@ -339,7 +339,7 @@ for i, key in enumerate(model_labels):
         
         # Fit quadratic to model light curves
         a2, a1, a0 = np.polyfit( time, rprs, 2)
-        ax[j].plot( time*3600.*24., (a2*time**2 + a1*time + a0) - np.mean(rprs) + np.mean(Rp_ref[nrs]), color='magenta', label='Quadratic fit to SPARC/MITgcm', zorder=2)
+        ax[j].plot( time*3600.*24., (a2*time**2 + a1*time + a0) - np.mean(rprs) + np.mean(Rp_ref[nrs]), color='magenta', label='Quadratic fit to ' + model_labels[i], zorder=2)
         print(nrs, 'a1:', a1, 'a2:', a2 )
         ax[j].legend( fontsize='x-small' )
 
@@ -348,6 +348,28 @@ ax[0].set_xlim(np.min(t)*24.*3600.,np.max(t)*24.*3600.)
 plt.savefig( os.path.join(pr.WORK_DIR, fit_dirs[0], 'white', pr.MCMC_DIR, 'radius_functions.pdf'), bbox_inches='tight', dpi=300 )
 plt.show()
 plt.close()
+
+#%% CORNER PLOT
+
+plot_params = ['aRs', 'b', 'R0_NRS2', 'R1_NRS2', 'R2_NRS2', 'u1_NRS2', 'u2_NRS2']
+
+# First run
+fit_directory = os.path.join( pr.WORK_DIR, '250429_quadratic', 'white', pr.MCMC_DIR )
+mcmc_result = Utils.pickle_read( os.path.join( fit_directory, pr.CHAIN_FILE) )
+plot_chain = Utils.reduce_cornerplot( mcmc_result, plot_params )
+
+# Second run
+fit_directory2 = os.path.join( pr.WORK_DIR, '250429_linear', 'white', pr.MCMC_DIR )
+mcmc_result2 = Utils.pickle_read( os.path.join( fit_directory2, pr.CHAIN_FILE) )
+plot_chain2 = Utils.reduce_cornerplot( mcmc_result2, plot_params )
+
+# Unit conversions
+plot_chain['flat_chain'][:,2] *= 1.0E2      # R0
+plot_chain['flat_chain'][:,3] *= 1.0E2      # R1
+plot_chain2['flat_chain'][:,2] *= 1.0E2      # R0
+plot_chain2['flat_chain'][:,3] *= 1.0E2      # R1
+
+Plot.corner_plot( plot_chain, os.path.join(fit_directory, 'corner'), mcmc_result2=plot_chain2 )
 
 # #%% SINGLE LIGHT CURVE FITS
 

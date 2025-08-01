@@ -17,7 +17,7 @@ with open('parameters.py', 'r') as f:
 
 
 # Spectroscopic analysis only
-files2run = [1,2,10,14,15,16,17]
+files2run = [1,2,10,14,15,16]
 
 for file2run in files2run:
     if file2run < 10:

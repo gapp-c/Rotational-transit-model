@@ -36,8 +36,8 @@ from scipy.stats import binned_statistic
 #%% PLOT ROTATIONAL SIGNAL
 
 # Data
-trans_folders = ['250429_linear', '250429_quadratic_ldc-priors', '250429_quadratic']
-trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs']
+trans_folders = ['250429_linear', '250429_quadratic', '250429_quadratic_ldc-priors']
+trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs']
 lc = Utils.pickle_read( os.path.join(pr.WORK_DIR, trans_folders[0], 'spec', pr.LC_FILE) )
 
 lc_keys = list(lc.keys())
@@ -47,8 +47,8 @@ for ldc in ldcs.keys():
         ldcs[ldc] += [lc[lc_key][ldc]]
 
 # Models
-model_files = ['output_nominal', 'output_t_tweak', 'output_co_tweak']
-model_labels = ['SPARC/MITgcm, nominal', 'SPARC/MITgcm, T modification', 'SPARC/MITgcm, T modification and CO']#'#C/O=0.92']
+model_files = ['output_nominal', 'output_t_tweak']#, 'output_T-modification_CtoO-modification']
+model_labels = ['SPARC/MITgcm, nominal', 'SPARC/MITgcm, muted leading limb', 'SPARC/MITgcm, muted leading limb and C/O=0.92']
 
 trans_spec = {}
 for i, trans_folder in enumerate(trans_folders):
@@ -101,31 +101,26 @@ print('Model, CO:', co_model[0], 'ppm/hr')
 sio_interval = [trans_spec[trans_labels[0]]['wavelength'][7] - trans_spec[trans_labels[0]]['wavelength_halfwidth'][7], trans_spec[trans_labels[0]]['wavelength'][8] + trans_spec[trans_labels[0]]['wavelength_halfwidth'][8]]
 sio_model, applied_bin_edges, indices = binned_statistic( models[model_labels[0]]['wavelength'], models[model_labels[0]]['R1']*conversion, bins=sio_interval )
 print('Model, SiO:', sio_model[0], 'ppm/hr')
-# #%%
 
 # for i in range(len(broad_lc['NRS2']['bjd_tdb'])):
 #     print((broad_lc['NRS2']['bjd_tdb'][i]-broad_lc['NRS1']['bjd_tdb'][i])*24.*3600.)
 
-#%% ALL MODELS
+#%% PLOT DIFFERENT REDUCTIONS
 
 # Data
-trans_folders = ['250429_linear', '250429_quadratic_ldc-priors', '250429_quadratic']
-trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs']
-lc = Utils.pickle_read( os.path.join(pr.WORK_DIR, trans_folders[0], 'spec', pr.LC_FILE) )
-
-lc_keys = list(lc.keys())
-ldcs = {'u1' : [], 'u1_err' : [], 'u2' : [], 'u2_err' : []}
-for ldc in ldcs.keys():
-    for lc_key in lc_keys:
-        ldcs[ldc] += [lc[lc_key][ldc]]
+trans_folders = ['250429_linear', '250729_linear']
+trans_labels = ['Firefly', 'EUREKA!']
 
 # Models
-model_files = ['output_nominal']#, 'output_co_tweak', 'output_t_tweak']
-model_labels = ['SPARC/MITgcm', 'CO removed from morning', 'Temperature tweak']
+model_files = ['output_nominal', 'output_t_tweak']#, 'output_co_tweak']
+model_labels = ['SPARC/MITgcm, nominal', 'SPARC/MITgcm, T modification', 'SPARC/MITgcm, CO modification']#'#C/O=0.92']
 
 trans_spec = {}
 for i, trans_folder in enumerate(trans_folders):
-    trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
+    if i == 0:
+        trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
+    else:
+        trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, '' + pr.MCMC_DIR)
     trans_spec[trans_labels[i]] = Utils.pickle_read( os.path.join(trans_dir, pr.TRANS_FILE ) )
 
 models = {}
@@ -141,39 +136,77 @@ for i, model_file in enumerate(model_files):
     
     models[model_labels[i]] = Utils.twoD_lc2coefficients( time, rprs, wvls )
 
-Plot.planet_rotation_nruns( trans_spec, models=models, opath = os.path.join(trans_dir, 'rotational_spectrum') )
-Plot.all_fit_parameters( trans_spec[trans_labels[2]], LDcoefficients=ldcs )
+Plot.planet_rotation_nruns( trans_spec, models=models, opath = os.path.join(trans_dir, 'nirspec_reductions_spectra') )
+# Plot.all_fit_parameters( trans_spec[trans_labels[0]], LDcoefficients=ldcs, opath=os.path.join(pr.WORK_DIR, trans_folders[0], 'spec', pr.TRANS_DIR, '' + pr.MCMC_DIR, 'all_fit_params') )
 
+# #%% ALL MODELS
 
-# Data
-trans_folders = ['250429_linear']#, '250429_quadratic_ldc-priors', '250429_quadratic']
-trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs']
-model_files = ['output_nominal', 'output_co_tweak', 'output_t_tweak']
-model_labels = ['Nominal SPARC/MITgcm', 'CO modification', 'Temperature modification']
+# # Data
+# trans_folders = ['250429_linear', '250429_quadratic_ldc-priors', '250429_quadratic']
+# trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs']
+# lc = Utils.pickle_read( os.path.join(pr.WORK_DIR, trans_folders[0], 'spec', pr.LC_FILE) )
 
-trans_spec = {}
-for i, trans_folder in enumerate(trans_folders):
-    trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
-    trans_spec[trans_labels[i]] = Utils.pickle_read( os.path.join(trans_dir, pr.TRANS_FILE ) )
+# lc_keys = list(lc.keys())
+# ldcs = {'u1' : [], 'u1_err' : [], 'u2' : [], 'u2_err' : []}
+# for ldc in ldcs.keys():
+#     for lc_key in lc_keys:
+#         ldcs[ldc] += [lc[lc_key][ldc]]
 
-models = {}
-for i, model_file in enumerate(model_files):
-    f=h5py.File(os.path.join(pr.WORK_DIR, "aurelien/" + model_file + ".h5") )
-    time = f["Model/lightcurve/times"][...]
-    rprs = np.sqrt(f["Output/lightcurve/flux"][...])
-    wvls = 10000./f["Output/lightcurve/wns"][...]
+# # Models
+# model_files = ['output_nominal']#, 'output_co_tweak', 'output_t_tweak']
+# model_labels = ['SPARC/MITgcm', 'CO removed from morning', 'Temperature tweak']
+
+# trans_spec = {}
+# for i, trans_folder in enumerate(trans_folders):
+#     trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
+#     trans_spec[trans_labels[i]] = Utils.pickle_read( os.path.join(trans_dir, pr.TRANS_FILE ) )
+
+# models = {}
+# for i, model_file in enumerate(model_files):
+#     f=h5py.File(os.path.join(pr.WORK_DIR, "aurelien/" + model_file + ".h5") )
+#     time = f["Model/lightcurve/times"][...]
+#     rprs = np.sqrt(f["Output/lightcurve/flux"][...])
+#     wvls = 10000./f["Output/lightcurve/wns"][...]
     
-    # Trim from T2 to T3
-    T23 = 2.25*3600.
-    time, rprs = Utils.trim_spectrum( time, rprs, -T23/2., T23/2. )
+#     # Trim from T2 to T3
+#     T23 = 2.25*3600.
+#     time, rprs = Utils.trim_spectrum( time, rprs, -T23/2., T23/2. )
     
-    models[model_labels[i]] = Utils.twoD_lc2coefficients( time, rprs, wvls )
+#     models[model_labels[i]] = Utils.twoD_lc2coefficients( time, rprs, wvls )
 
-Plot.planet_rotation_nruns( trans_spec, models=models, opath = os.path.join(trans_dir, 'gcm_tweaks') )
+# Plot.planet_rotation_nruns( trans_spec, models=models, opath = os.path.join(trans_dir, 'rotational_spectrum') )
+# Plot.all_fit_parameters( trans_spec[trans_labels[2]], LDcoefficients=ldcs )
 
-# wavelengths = models[model_labels[0]]['wavelength']
-# for i in range(len(wavelengths) - 1):
-#     print((wavelengths[i+1]-wavelengths[i])/(wavelengths[i+1]+wavelengths[i]))
+
+# # Data
+# trans_folders = ['250429_linear']#, '250429_quadratic_ldc-priors', '250429_quadratic']
+# trans_labels = ['$R_2/R_*=0$, Uniform priors on LDCs', '$R_2/R_*$ free, Gaussian priors on LDCs', '$R_2/R_*$ free, Uniform priors on LDCs']
+# model_files = ['output_nominal', 'output_co_tweak', 'output_t_tweak']
+# model_labels = ['Nominal SPARC/MITgcm', 'CO modification', 'Temperature modification']
+
+# trans_spec = {}
+# for i, trans_folder in enumerate(trans_folders):
+#     trans_dir = os.path.join( pr.WORK_DIR, trans_folder, 'spec', pr.TRANS_DIR, 'all_' + pr.MCMC_DIR)
+#     trans_spec[trans_labels[i]] = Utils.pickle_read( os.path.join(trans_dir, pr.TRANS_FILE ) )
+
+# models = {}
+# for i, model_file in enumerate(model_files):
+#     f=h5py.File(os.path.join(pr.WORK_DIR, "aurelien/" + model_file + ".h5") )
+#     time = f["Model/lightcurve/times"][...]
+#     rprs = np.sqrt(f["Output/lightcurve/flux"][...])
+#     wvls = 10000./f["Output/lightcurve/wns"][...]
+    
+#     # Trim from T2 to T3
+#     T23 = 2.25*3600.
+#     time, rprs = Utils.trim_spectrum( time, rprs, -T23/2., T23/2. )
+    
+#     models[model_labels[i]] = Utils.twoD_lc2coefficients( time, rprs, wvls )
+
+# Plot.planet_rotation_nruns( trans_spec, models=models, opath = os.path.join(trans_dir, 'gcm_tweaks') )
+
+# # wavelengths = models[model_labels[0]]['wavelength']
+# # for i in range(len(wavelengths) - 1):
+# #     print((wavelengths[i+1]-wavelengths[i])/(wavelengths[i+1]+wavelengths[i]))
 
 #%% T2 AND T3 SPECTRA
 
@@ -198,7 +231,29 @@ for i, point in enumerate(contact_points):
     trans_spec[point]['RpRs']['value'] = rot_trans_spec['R0']['value'] + sign * T23/2.*rot_trans_spec['R1']['value']
     trans_spec[point]['RpRs']['stderr'] = np.sqrt( rot_trans_spec['R0']['stderr']**2 + (T23/2.*rot_trans_spec['R1']['stderr'])**2 )
 
-Plot.Transmission_Spectrum_nruns_meansubtracted_npanels( trans_spec, transit_depth_unit=1.0E-6, limits=[-70.,1000.], opath=os.path.join(trans_dir, 'trans_spec') )
+# Models
+model_file = 'output_nominal'# output_t_tweak
+
+models = {}
+f=h5py.File(os.path.join(pr.WORK_DIR, "aurelien/" + model_file + ".h5") )
+time = f["Model/lightcurve/times"][...]
+rprs = np.sqrt(f["Output/lightcurve/flux"][...])
+wvls = 10000./f["Output/lightcurve/wns"][...]
+    
+# Trim from T2 to T3
+T23 = 2.25*3600.
+time, rprs = Utils.trim_spectrum( time, rprs, -T23/2., T23/2. )
+
+models['Contact point 2'] = {}
+models['Contact point 2']['wavelength'] = wvls
+models['Contact point 2']['transit_depth'] = rprs[0,:]**2
+
+models['Contact point 3'] = {}
+models['Contact point 3']['wavelength'] = wvls
+models['Contact point 3']['transit_depth'] = rprs[-1,:]**2
+
+Plot.Transmission_Spectrum_nruns_npanels( trans_spec, transit_depth_unit=1.0E-2, opath=os.path.join(trans_dir, 'trans_spec') )
+# Plot.Transmission_Spectrum_nruns_meansubtracted_npanels( trans_spec, transit_depth_unit=1.0E-6 )
 
 # #%% COMPARISON TRANSLATIONAL & ROTATIONAL MODEL
 

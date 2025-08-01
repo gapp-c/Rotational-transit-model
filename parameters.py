@@ -62,11 +62,12 @@ NUMBER_OF_PIXEL_COLUMNS = { 'NRS1' : 244, 'NRS2' : 237}
 SIGMA_CLIPPING = np.inf
 BASELINE_BROAD = 'linear'
 BASELINE_SPEC = 'linear'
+EMISSION = 'polynomial'
 
 IMPACT_PARAMETER = True
 FIT_ORBIT_SPEC = False
-ROTATION_1 = True
-ROTATION_2 = True
+ROTATION_1 = False
+ROTATION_2 = False
 FIT_ROTATION_2_SPEC = True
 ROTATION_2_NEGATIVE = False
 KIPPING_LD_PARAMETERS = False
@@ -76,7 +77,7 @@ LDC_PRIORS = False
 FIT_TMID_SPEC = True               # Fit for transit midtimes in the spectroscopic light curves?
 FIT_TMID_DETECTORS = False          # Fit for different transit midtimes between NRS1 and NRS2? NOT TESTED
 ADD_SYSTEMATIC_UNCERTAINTY = True
-CATWOMAN = False
+EUREKA = False
 
 ########## TECHNICAL PARAMETERS ###########
 
@@ -85,6 +86,7 @@ SAVE_PLOTS = True
 USE_ASTRONODES = False
 NUMBER_OF_CORES = 20              # Only relevant when using Astronodes
 LIVE_POINTS = 500                 # Nested sampling
+NESTED_STOPPING = 0.1             # dlogz, None for dynesty default
 
 ######### FILEPATHS & FILENAMES #########
 
@@ -114,10 +116,13 @@ ASTRONODE_DIR = os.path.join( WORK_DIR, 'astronode_runs/' )
 if USE_ASTRONODES:
     RESULTS_DIR = os.path.join( WORK_DIR, os.getcwd().split('/')[-1] )
 else:
-    RESULTS_DIR = os.path.join( WORK_DIR, '250429' )
+    RESULTS_DIR = os.path.join( WORK_DIR, '250729' )
 
 if KIPPING_LD_PARAMETERS:
     RESULTS_DIR += '_kipping'
+
+if EUREKA:
+    RESULTS_DIR += '_eureka'
 
 if ROTATION_2:
     RESULTS_DIR += '_quadratic'
@@ -139,7 +144,7 @@ CUSTOM_INPUT_DIR = os.path.join( WORK_DIR, 'custom_input/' )
 
 BROAD_DIR = os.path.join( RESULTS_DIR, 'white/' )
 SPEC_DIR = os.path.join( RESULTS_DIR, 'spec/' )
-MOLECULES = ['co']
+SINGLE_LIGHTCURVES = ['nrs1', 'nrs2']
 
 TRANS_DIR = 'transmission_spectrum/'
 PRELIM_DIR = 'leastsq/'

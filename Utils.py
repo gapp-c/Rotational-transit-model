@@ -62,13 +62,19 @@ def corner_labels( var ):
     elif var == 'c2_NRS2':
         return '$c_2$ (NRS2)'
     elif var == 'u1_NRS2':
-        return '$u_1$ (NRS2)'
+        return '$u_1$'
     elif var == 'u2_NRS2':
-        return '$u_2$ (NRS2)'
+        return '$u_2$'
     elif var == 'sigma_sys_NRS1':
         return '$\sigma_{sys}$ (NRS1, ppm)'
     elif var == 'sigma_sys_NRS2':
         return '$\sigma_{sys}$ (NRS2, ppm)'
+    elif var == 'R0_NRS2':
+        return '$R_0/R_*$ [\%]'
+    elif var == 'R1_NRS2':
+        return '$R_1/R_*$ [\% day$^{-1}$]'
+    elif var == 'R2_NRS2':
+        return '$R_2/R_*$ [day$^{-2}$]'
     else:
         return var
 
@@ -210,6 +216,28 @@ def merge_dictionaries (dict1, dict2):
             dict1[var] = dict2[var]
             
     return dict1
+
+def merge_spectral_lightcurves( lc ):
+    
+    detectors = list(lc.keys())
+    n_chan = 0
+    for detector in detectors:
+        n_chan += len(list(lc[detector].keys()))
+    
+    dictionary = {}
+    i = 0
+    for detector in detectors:
+        keys = list( lc[detector].keys() )
+        for key in keys:
+            new_key = 'ch{0:.0f}of{1:.0f}'.format( i+1, n_chan )
+            dictionary[new_key] = {}
+            lc_keys = list(lc[detector][key].keys())
+            for lc_key in lc_keys:
+                dictionary[new_key][lc_key] = lc[detector][key][lc_key]
+            dictionary[new_key]['detector'] = detector
+            i += 1
+    
+    return dictionary
 
 def switch_off_emission( params ):
     
@@ -890,7 +918,7 @@ def scale_uncertainties_broad( z, fit_params, p0, batpar, batmodel ):
         if reduced_chisquare[nrs] > 1.:
             z[nrs]['lcUncs'] = z[nrs]['lcUncs'] * np.sqrt(reduced_chisquare[nrs])
 
-def bayes2Nsigma_wrong( b ):
+def bayes2Nsigma_benneke_seager_2013( b ):
     """
     Calculates the sigma significance by which a null hypothesis given a Bayes factor can be ruled out by.
     Equations were taken from Benneke & Seager (2013), eq.s (10) & (11)
@@ -913,7 +941,7 @@ def bayes2Nsigma_wrong( b ):
     
     return np.sqrt(2.) * scipy.special.erfinv(1.-p_value)
 
-def bayes2Nsigma ( bayes_factor ):
+def bayes2Nsigma_daniel ( bayes_factor ):
     ''' Converts a bayes factor between two models to a probability and
     corresponding Bayesian Sigma .
     Args :
@@ -925,44 +953,24 @@ def bayes2Nsigma ( bayes_factor ):
     sigma = -stats . norm . ppf (p /2.)
     return sigma
 
-def extract_white_lc( data ):
-    """
-    Extracts the white light curve from an xarray object and modifies the format.
-    """
-    
-    print(data.keys())
-    # dictionary = { 'bmjd_tdb' : np.array(data.time) }
-    # dictionary['wavEdgesMicr'] = np.array([np.min(data.wave_low), np.max(data.wave_hi)])
-    # dictionary['lcVals'], dictionary['lcUncs'] = normalize_lightcurve( data.flux_white, data.err_white )
-    # dictionary['t'] = standardized_time(data.time)
-    
-    # # Remove NaNs
-    # count = 0
-    # i = 0
-    # while (i < len(dictionary['lcVals'])):
-    #     if np.isnan(dictionary['lcVals'][i]) or np.isnan(dictionary['lcUncs'][i]) or np.isnan(dictionary['bmjd_tdb'][i]):
-    #         dictionary = remove_outlier( dictionary, i )
-    #         count += 1
-    #     else:
-    #         i += 1
-    
-    # print('Removed outliers because of NaN:', count)
-    # return dictionary
-
-def extract_spec_lc( data ):
+def extract_spec_lc( data, detector ):
     """
     Extracts the spectroscopic light curves from an xarray object and modifies the format.
     """
     
     dictionary = {}
-    n_chan, n_int = np.shape( data.data )
+    n_chan, n_int = np.shape( data[detector + '_light_curves'] )
+    print(n_chan, n_int)
     for i in range(n_chan):
         dictionary[str(i)] = {}
-        dictionary[str(i)]['bmjd_tdb'] = np.array(data.time)
-        dictionary[str(i)]['lcVals'], dictionary[str(i)]['lcUncs'] = normalize_lightcurve( data.data[i,:], data.err[i,:] )
-        dictionary[str(i)]['wavEdgesMicr'] = np.array( [data.wave_low[i], data.wave_hi[i]] )
-        dictionary[str(i)]['t'] = standardized_time(data.time)
-        
+        dictionary[str(i)]['bmjd_tdb'] = np.array( data[detector + '_time(BJD_TDB)'] )
+        dictionary[str(i)]['bjd_tdb'] = dictionary[str(i)]['bmjd_tdb'] + 2400000.5
+        dictionary[str(i)]['lcVals'] = data[detector + '_light_curves'][i,:]
+        dictionary[str(i)]['lcUncs'] = data[detector + '_light_curves_err'][i,:]
+        dictionary[str(i)]['wavEdgesMicr'] = np.array( [data[detector + '_wavelengths(micron)'][i] - data[detector + '_wavelengths_fullwidth(micron)'][i]/2., data[detector + '_wavelengths(micron)'][i] + data[detector + '_wavelengths_fullwidth(micron)'][i]/2.] )
+        dictionary[str(i)]['t'] = standardized_time( dictionary[str(i)]['bjd_tdb'] )
+        dictionary[str(i)]['detector'] = detector
+    
         # Remove NaNs
         count = 0
         j = 0
@@ -973,7 +981,8 @@ def extract_spec_lc( data ):
             else:
                 j += 1
         print(i, 'removed outliers because of NaN:', count)
-        
+    
+    
     return dictionary
 
 def kick_out_nans( x,y ):
@@ -1018,7 +1027,7 @@ def remove_nans(dictionary):
     count = 0
     i = 0
     while (i < len(dictionary['lcVals'])):
-        if np.isnan(dictionary['lcVals'][i]) or np.isnan(dictionary['lcUncs'][i]) or np.isnan(dictionary['t'][i]):
+        if np.isnan(dictionary['lcVals'][i]) or np.isnan(dictionary['lcUncs'][i]) or np.isnan(dictionary['bjd_tdb'][i]):
             dictionary = remove_outlier( dictionary, i )
             count += 1
         else:
@@ -1348,6 +1357,10 @@ def transit_and_eclipses_white( inp ):
                         pass
         try:
             outp[k]['wavEdgesMicr'] = inp[k]['wavEdgesMicr']
+        except KeyError:
+            pass
+        try:
+            outp[k]['detector'] = inp[k]['detector']
         except KeyError:
             pass
         
@@ -1681,4 +1694,29 @@ def simultaneous_mcmc2trans_spec( mcmc_result, lc ):
                 trans_spec[spec_parameter][key][i] = mcmc_result[key + 's'][orig_key]
     
     return trans_spec
+
+def reduce_cornerplot( mcmc_result, plot_params ):
+    
+    orig_params = mcmc_result['parameters']
+    
+    # Reduce corner plot to manageable size
+    plot_chain = { 'parameters' : plot_params, 'flat_chain' : np.zeros( (len(mcmc_result['flat_log_probability']), len(plot_params)) ), 'flat_log_probability' : mcmc_result['flat_log_probability'] }
+    n = len(mcmc_result['flat_log_probability'])
+    
+    for i, param in enumerate(plot_params):
+        
+        # Find index in original samples
+        j = 0
+        while j<len(orig_params):
+            if orig_params[j] == param:
+                break
+            else:
+                j += 1
+        
+        if j == len(orig_params):
+            plot_chain['flat_chain'][:,i] = np.zeros(n) + np.random.randn(n)*1.0E-10
+        else:
+            plot_chain['flat_chain'][:,i] = mcmc_result['flat_chain'][:,j]
+    
+    return plot_chain
 

@@ -132,6 +132,7 @@ def spec( npix, spec1d ):
             # else:
             ixU = chixs[k][i+1]
             dispIxs_i = [ ixL, ixU-1 ]
+            print(k, 'channel', i, 'Pixel column range:', dispIxs_i[0], 'to', dispIxs_i[1], 'Wavelength range:', wavMicr_k[ixL], 'to', wavMicr_k[ixU] )
             # print(k,i,dispIxs_i)
             if k == 'NRS2':
                 lcVals_i, lcUncs_i = Utils.integrateFlux( fluxVals_k, fluxUncs_k, dispIxs_i, mask_column=293 )

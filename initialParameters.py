@@ -64,9 +64,15 @@ def Broad( broad_lc ):
             pars.add('u2_' + nrs, value=broad_lc[nrs]['u2'], vary = pr.FIT_2ND_LD_PARAMETER )
         
         # Partial phasecurve
-        pars.add('p0_' + nrs, value=0.1 )
-        pars.add('p1_' + nrs, value=0.1 )
-        pars.add('p2_' + nrs, value=0.1 )
+        if pr.EMISSION == 'polynomial':
+            pars.add('p0_' + nrs, value=0.1 )
+            pars.add('p1_' + nrs, value=0.1 )
+            pars.add('p2_' + nrs, value=0.1 )
+        elif pr.EMISSION == 'cosine':
+            pars.add('A_' + nrs, value=0.1 )
+            pars.add('B_' + nrs, value=0.1 )
+            pars.add('phi_' + nrs, value=0.1 )
+            
         
     return pars
 
@@ -106,55 +112,55 @@ def dynesty_uniform_priors( p0 ):
         if p0[par].vary:
             priors[par] = { 'prior' : 'uniform'}            
             if par[:2] == 'R0':
-                priors[par]['lower_limit'] = 0.05
-                priors[par]['upper_limit'] = 0.2
+                priors[par]['lower_limit'] = 0.1
+                priors[par]['upper_limit'] = 0.15
             elif par[:2] == 'R1':
-                priors[par]['lower_limit'] = -1.
-                priors[par]['upper_limit'] = 1.
+                priors[par]['lower_limit'] = -0.5
+                priors[par]['upper_limit'] = 0.5
             elif par[:2] == 'R2':
                 priors[par]['lower_limit'] = -10.
                 priors[par]['upper_limit'] = 10.
                 if pr.ROTATION_2_NEGATIVE:
                     priors[par]['upper_limit'] = 0.
             elif par[:4] == 'Tmid':
-                priors[par]['lower_limit'] = 0.4
-                priors[par]['upper_limit'] = 0.8
+                priors[par]['lower_limit'] = 0.6
+                priors[par]['upper_limit'] = 0.7
             elif par[:2] == 'c0':
-                priors[par]['lower_limit'] = 0.
-                priors[par]['upper_limit'] = 2.
+                priors[par]['lower_limit'] = 0.5
+                priors[par]['upper_limit'] = 1.5
             elif par[:2] == 'c1':
-                priors[par]['lower_limit'] = -1.
-                priors[par]['upper_limit'] = 1.
+                priors[par]['lower_limit'] = -0.1
+                priors[par]['upper_limit'] = 0.1
             elif par[:2] == 'c2':
                 priors[par]['lower_limit'] = -2.
                 priors[par]['upper_limit'] = 2.
             elif par[:2] == 'p0':
-                priors[par]['lower_limit'] = -1.
-                priors[par]['upper_limit'] = 1.
+                priors[par]['lower_limit'] = -0.1
+                priors[par]['upper_limit'] = 0.1
             elif par[:2] == 'p1':
-                priors[par]['lower_limit'] = -1.
-                priors[par]['upper_limit'] = 1.
+                priors[par]['lower_limit'] = -0.1
+                priors[par]['upper_limit'] = 0.1
             elif par[:2] == 'p2':
+                priors[par]['lower_limit'] = -0.1
+                priors[par]['upper_limit'] = 0.1
+            elif par[:2] == 'u1':
                 priors[par]['lower_limit'] = -1.
                 priors[par]['upper_limit'] = 1.
-            elif par[:2] == 'u1':
-                priors[par]['lower_limit'] = -3.
-                priors[par]['upper_limit'] = 3.
             elif par[:2] == 'u2':
-                priors[par]['lower_limit'] = -3.
-                priors[par]['upper_limit'] = 3.
+                priors[par]['lower_limit'] = -1.
+                priors[par]['upper_limit'] = 1.
             elif par[:9] == 'sigma_sys':
                 priors[par]['lower_limit'] = 0.
-                priors[par]['upper_limit'] = 1000.
+                priors[par]['upper_limit'] = 400.
             elif par == 'aRs':
-                priors[par]['lower_limit'] = 2.
-                priors[par]['upper_limit'] = 5.
+                priors[par]['lower_limit'] = 3.5
+                priors[par]['upper_limit'] = 4.5
             elif par == 'inc':
                 priors[par]['lower_limit'] = 50.
                 priors[par]['upper_limit'] = 90.
             elif par == 'b':
                 priors[par]['lower_limit'] = 0.
-                priors[par]['upper_limit'] = 1.
+                priors[par]['upper_limit'] = 0.5
     
     return priors
 
